@@ -1,0 +1,21 @@
+# Node.js dependencies and logs
+node_modules/
+npm-debug.log*
+*.log
+
+# Local env configuration (do not commit secrets)
+.env
+.env.local
+.env.*.local
+
+# Postman CLI cache directory (downloaded at runtime)
+.postman-cli-cache/
+
+# Postman test result file (generated dynamically)
+results.json
+
+# Editor / OS / tooling artifacts
+.DS_Store
+.idea/
+.vscode/
+*.swp

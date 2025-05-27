@@ -1,0 +1,12 @@
+{
+  "name": "xray-jira-postman-integration",
+  "version": "1.0.0",
+  "description": "Sync Postman results with Xray/Jira (create bugs, close bugs, link to tests)",
+  "main": "sync_xray_jira.js",
+  "scripts": {
+    "sync": "node sync_xray_jira.js results/results.json"
+  },
+  "dependencies": {
+    "axios": "^1.6.0"
+  }
+}

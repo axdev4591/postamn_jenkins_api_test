@@ -1,223 +1,245 @@
+// sync_xray_jira.js
+// Description: Syncs Postman results with Xray test cases and Jira bugs
+
+require('dotenv').config();
 const fs = require('fs');
 const axios = require('axios');
+const FormData = require('form-data');
 
-const XRAY_BASE_URL = process.env.XRAY_BASE_URL; // e.g. https://xray.cloud.getxray.app/api/v2
-const XRAY_CLIENT_ID = process.env.XRAY_CLIENT_ID;
-const XRAY_CLIENT_SECRET = process.env.XRAY_CLIENT_SECRET;
+const {
+  JIRA_BASE_URL,
+  JIRA_USER,
+  JIRA_API_TOKEN,
+  JIRA_PROJECT_KEY,
+  BUG_ISSUE_TYPE,
+  XRAY_CLIENT_ID,
+  XRAY_CLIENT_SECRET,
+  XRAY_BASE_URL
+} = process.env;
 
-const JIRA_BASE_URL = process.env.JIRA_BASE_URL; // e.g. https://yourdomain.atlassian.net
-const JIRA_USER = process.env.JIRA_USER;         // Jira email or username
-const JIRA_API_TOKEN = process.env.JIRA_API_TOKEN;
-
-const JIRA_PROJECT_KEY = process.env.JIRA_PROJECT_KEY || 'TEST';
-const BUG_ISSUE_TYPE = process.env.BUG_ISSUE_TYPE || 'Bug';
-const BUG_LINK_TYPE = 'Relates'; // You can customize this (e.g. "Blocks")
-
-if (!XRAY_BASE_URL || !XRAY_CLIENT_ID || !XRAY_CLIENT_SECRET || !JIRA_BASE_URL || !JIRA_USER || !JIRA_API_TOKEN) {
-  console.error('Missing one or more required environment variables.');
-  process.exit(1);
-}
-
-const jiraAuthHeader = {
-  Authorization: `Basic ${Buffer.from(`${JIRA_USER}:${JIRA_API_TOKEN}`).toString('base64')}`,
-  'Content-Type': 'application/json'
+const auth = {
+  username: JIRA_USER,
+  password: JIRA_API_TOKEN
 };
 
+let xrayToken = null;
+
+/**
+ * Authenticate with Xray Cloud and get a token
+ */
 async function getXrayToken() {
-  try {
-    const resp = await axios.post(`${XRAY_BASE_URL}/authenticate`, {
-      client_id: XRAY_CLIENT_ID,
-      client_secret: XRAY_CLIENT_SECRET
-    });
-    return resp.data;
-  } catch (err) {
-    console.error('Error authenticating with Xray:', err.response?.data || err.message);
-    process.exit(1);
-  }
+  if (xrayToken) return xrayToken;
+
+  const res = await axios.post(`${XRAY_BASE_URL}/api/v2/authenticate`, {
+    client_id: XRAY_CLIENT_ID,
+    client_secret: XRAY_CLIENT_SECRET
+  });
+
+  xrayToken = res.data;
+  return xrayToken;
 }
 
-async function importResultsToXray(token, resultsData) {
-  try {
-    const resp = await axios.post(
-      `${XRAY_BASE_URL}/import/execution/postman`,
-      resultsData,
-      {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      }
-    );
-    console.log('Xray import response:', JSON.stringify(resp.data, null, 2));
-    return resp.data;
-  } catch (err) {
-    console.error('Error importing results to Xray:', err.response?.data || err.message);
-    process.exit(1);
-  }
+/**
+ * Extract Jira test key from Postman request title (e.g., "[TEST-123]")
+ */
+function extractTestKey(name) {
+  const match = name.match(/\[(TEST-\d+)\]/);
+  return match ? match[1] : null;
 }
 
-async function findBugIssue(jiraAuthHeader, testKey) {
-  // Search for an existing bug issue with summary containing testKey and unresolved status
-  const jql = `project = ${JIRA_PROJECT_KEY} AND summary ~ "${testKey}" AND issuetype = ${BUG_ISSUE_TYPE} ORDER BY created DESC`;
-  try {
-    const resp = await axios.get(
-      `${JIRA_BASE_URL}/rest/api/3/search`,
-      {
-        params: { jql, maxResults: 10 },
-        headers: jiraAuthHeader
-      }
-    );
-    return resp.data.issues;
-  } catch (err) {
-    console.error('Error searching Jira issues:', err.response?.data || err.message);
-    return [];
-  }
+/**
+ * Load Postman results from results.json
+ */
+function loadResults(file) {
+  return JSON.parse(fs.readFileSync(file, 'utf8'));
 }
 
-async function createBugIssue(jiraAuthHeader, testKey, summary, description) {
-  const payload = {
+/**
+ * Get existing bug related to a test key (if exists)
+ */
+async function getBugForTestKey(testKey) {
+  const jql = `project = ${JIRA_PROJECT_KEY} AND issuetype = ${BUG_ISSUE_TYPE} AND description ~ "${testKey}"`;
+  const res = await axios.get(`${JIRA_BASE_URL}/rest/api/2/search?jql=${encodeURIComponent(jql)}`, { auth });
+  return res.data.issues[0];
+}
+
+/**
+ * Create a Jira bug and link to test key
+ */
+async function createBug(testKey, summary, logs) {
+  const res = await axios.post(`${JIRA_BASE_URL}/rest/api/2/issue`, {
     fields: {
       project: { key: JIRA_PROJECT_KEY },
-      summary,
-      description,
+      summary: `[AUTO] Bug for ${testKey}: ${summary}`,
+      description: `Auto-generated bug linked to test case ${testKey}`,
       issuetype: { name: BUG_ISSUE_TYPE }
     }
-  };
-  try {
-    const resp = await axios.post(
-      `${JIRA_BASE_URL}/rest/api/3/issue`,
-      payload,
-      { headers: jiraAuthHeader }
-    );
-    return resp.data.key;
-  } catch (err) {
-    console.error('Error creating Jira bug:', err.response?.data || err.message);
-    return null;
+  }, { auth });
+
+  const issueKey = res.data.key;
+  await attachFile(issueKey, logs);
+  await linkIssues(testKey, issueKey);
+  return issueKey;
+}
+
+/**
+ * Reopen a closed Jira issue
+ */
+async function reopenIssue(issueKey) {
+  const res = await axios.get(`${JIRA_BASE_URL}/rest/api/2/issue/${issueKey}/transitions`, { auth });
+  const reopen = res.data.transitions.find(t => t.name.toLowerCase().includes('reopen'));
+  if (reopen) {
+    await axios.post(`${JIRA_BASE_URL}/rest/api/2/issue/${issueKey}/transitions`, {
+      transition: { id: reopen.id }
+    }, { auth });
   }
 }
 
-async function updateBugStatus(jiraAuthHeader, issueKey, transitionName) {
-  try {
-    // Get transitions available for the issue
-    const resp = await axios.get(`${JIRA_BASE_URL}/rest/api/3/issue/${issueKey}/transitions`, { headers: jiraAuthHeader });
-    const transition = resp.data.transitions.find(t => t.name.toLowerCase() === transitionName.toLowerCase());
-    if (!transition) {
-      console.warn(`Transition "${transitionName}" not found for issue ${issueKey}`);
-      return false;
+/**
+ * Close a Jira issue (if not already closed)
+ */
+async function closeIssue(issueKey) {
+  const res = await axios.get(`${JIRA_BASE_URL}/rest/api/2/issue/${issueKey}/transitions`, { auth });
+  const done = res.data.transitions.find(t => t.name.toLowerCase().includes('done') || t.name.toLowerCase().includes('close'));
+  if (done) {
+    await axios.post(`${JIRA_BASE_URL}/rest/api/2/issue/${issueKey}/transitions`, {
+      transition: { id: done.id }
+    }, { auth });
+  }
+}
+
+/**
+ * Link test and bug
+ */
+async function linkIssues(testKey, bugKey) {
+  await axios.post(`${JIRA_BASE_URL}/rest/api/2/issueLink`, {
+    type: { name: "Relates" },
+    inwardIssue: { key: testKey },
+    outwardIssue: { key: bugKey }
+  }, { auth }).catch(() => { });
+}
+
+/**
+ * Attach a log file to a Jira issue
+ */
+async function attachFile(issueKey, content) {
+  const form = new FormData();
+  const fileName = `temp-${issueKey}.log`;
+  fs.writeFileSync(fileName, content);
+  form.append('file', fs.createReadStream(fileName));
+  await axios.post(`${JIRA_BASE_URL}/rest/api/2/issue/${issueKey}/attachments`, form, {
+    headers: {
+      ...form.getHeaders(),
+      'X-Atlassian-Token': 'no-check'
+    },
+    auth
+  });
+  fs.unlinkSync(fileName);
+}
+
+/**
+ * Create a test case in Xray (if not already exists)
+ */
+async function createXrayTest(name) {
+  const res = await axios.post(`${JIRA_BASE_URL}/rest/api/2/issue`, {
+    fields: {
+      project: { key: JIRA_PROJECT_KEY },
+      summary: name,
+      issuetype: { name: 'Test' },
+      description: 'Test generated from Postman collection',
+      customfield_10049: 'Jenkins_postman' // Change this to match your custom field ID if needed
     }
-    // Perform transition
-    await axios.post(
-      `${JIRA_BASE_URL}/rest/api/3/issue/${issueKey}/transitions`,
-      { transition: { id: transition.id } },
-      { headers: jiraAuthHeader }
-    );
-    return true;
-  } catch (err) {
-    console.error(`Error transitioning issue ${issueKey}:`, err.response?.data || err.message);
-    return false;
-  }
+  }, { auth });
+
+  return res.data.key;
 }
 
-async function linkIssues(jiraBaseUrl, jiraAuthHeader, inwardIssueKey, outwardIssueKey) {
-  // inwardIssueKey = bug; outwardIssueKey = xray test
+/**
+ * Create a Test Execution in Xray
+ */
+async function createTestExecution(name) {
+  const res = await axios.post(`${JIRA_BASE_URL}/rest/api/2/issue`, {
+    fields: {
+      project: { key: JIRA_PROJECT_KEY },
+      summary: `Test Execution - ${name}`,
+      issuetype: { name: 'Test Execution' },
+      description: `Run from Jenkins for collection: ${name}`
+    }
+  }, { auth });
+
+  return res.data.key;
+}
+
+/**
+ * Submit test result to Xray
+ */
+async function submitResultToXray(testKey, status, execKey) {
+  const token = await getXrayToken();
+
   const payload = {
-    type: { name: BUG_LINK_TYPE },
-    inwardIssue: { key: inwardIssueKey },
-    outwardIssue: { key: outwardIssueKey }
+    testExecutionKey: execKey,
+    info: {
+      summary: "Automated Execution from Postman CLI",
+      description: "Postman test result sync from Jenkins",
+      testEnvironments: ["Jenkins"]
+    },
+    tests: [{
+      testKey,
+      status
+    }]
   };
-  try {
-    await axios.post(`${jiraBaseUrl}/rest/api/3/issueLink`, payload, { headers: jiraAuthHeader });
-    console.log(`Linked bug ${inwardIssueKey} to test case ${outwardIssueKey}`);
-  } catch (err) {
-    if (err.response && err.response.status === 400 && err.response.data.errorMessages && err.response.data.errorMessages.some(m => m.includes('already exists'))) {
-      console.log(`Link between ${inwardIssueKey} and ${outwardIssueKey} already exists.`);
-    } else {
-      console.error(`Error linking issues ${inwardIssueKey} -> ${outwardIssueKey}:`, err.response?.data || err.message);
+
+  await axios.post(`${XRAY_BASE_URL}/api/v2/import/execution`, payload, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json'
     }
-  }
+  });
 }
 
-async function processFailedTests(tests) {
-  for (const test of tests.filter(t => t.status === 'FAILED')) {
-    const testKey = test.testKey;
+/**
+ * Main entrypoint
+ */
+async function main(resultsPath) {
+  const results = loadResults(resultsPath);
+  const collectionName = results.collection.info.name;
+  const executionKey = await createTestExecution(collectionName);
+
+  for (const run of results.run.executions) {
+    const name = run.item.name;
+    let testKey = extractTestKey(name);
+
+    // If testKey is not embedded, create a new test case
     if (!testKey) {
-      console.warn('Skipping failed test with no testKey:', test);
-      continue;
+      testKey = await createXrayTest(name);
     }
 
-    // Search for existing bugs related to this testKey
-    const existingBugs = await findBugIssue(jiraAuthHeader, testKey);
+    // Generate log content
+    const logs = `Request:\n${JSON.stringify(run.request, null, 2)}\n\nResponse:\n${JSON.stringify(run.response, null, 2)}`;
+    const failed = run.assertions?.some(a => a.error);
 
-    let bugKey = null;
+    // Update test result in Xray
+    await submitResultToXray(testKey, failed ? "FAIL" : "PASS", executionKey);
 
-    if (existingBugs.length === 0) {
-      // Create a new bug
-      console.log(`Creating new bug for failed test ${testKey}`);
-      const summary = `Failed test bug for ${testKey}`;
-      const description = `Automatically created bug for failed test case ${testKey} imported from Postman results.`;
-      bugKey = await createBugIssue(jiraAuthHeader, testKey, summary, description);
-    } else {
-      // Pick the most recent bug
-      bugKey = existingBugs[0].key;
-
-      // Check if bug is closed/done and reopen if needed
-      const status = existingBugs[0].fields.status.name.toLowerCase();
-      if (['done', 'closed', 'resolved'].includes(status)) {
-        console.log(`Reopening closed bug ${bugKey} for failed test ${testKey}`);
-        await updateBugStatus(jiraAuthHeader, bugKey, 'Reopen');
+    // Bug sync
+    const bug = await getBugForTestKey(testKey);
+    if (failed) {
+      if (!bug) {
+        await createBug(testKey, name, logs);
+      } else if (['done', 'close'].includes(bug.fields.status.name.toLowerCase())) {
+        await reopenIssue(bug.key);
+        await attachFile(bug.key, logs);
+      } else {
+        await attachFile(bug.key, logs);
       }
-    }
-
-    if (bugKey) {
-      // Link bug to Xray test case
-      await linkIssues(JIRA_BASE_URL, jiraAuthHeader, bugKey, testKey);
+    } else if (bug) {
+      await closeIssue(bug.key);
     }
   }
 }
 
-async function processPassedTests(tests) {
-  for (const test of tests.filter(t => t.status === 'PASSED')) {
-    const testKey = test.testKey;
-    if (!testKey) {
-      continue;
-    }
-    // Search for existing bugs related to this testKey
-    const existingBugs = await findBugIssue(jiraAuthHeader, testKey);
-
-    for (const bug of existingBugs) {
-      const bugKey = bug.key;
-      const status = bug.fields.status.name.toLowerCase();
-      if (!['done', 'closed', 'resolved'].includes(status)) {
-        console.log(`Closing bug ${bugKey} for passed test ${testKey}`);
-        await updateBugStatus(jiraAuthHeader, bugKey, 'Close');
-      }
-    }
-  }
-}
-
-async function main() {
-  const resultsFile = process.argv[2] || 'results.json';
-  if (!fs.existsSync(resultsFile)) {
-    console.error(`Results file "${resultsFile}" not found!`);
-    process.exit(1);
-  }
-
-  const resultsData = JSON.parse(fs.readFileSync(resultsFile, 'utf8'));
-  const xrayToken = await getXrayToken();
-  const importResponse = await importResultsToXray(xrayToken, resultsData);
-
-  if (!importResponse.tests || importResponse.tests.length === 0) {
-    console.log('No tests found in Xray import response.');
-    return;
-  }
-
-  await processFailedTests(importResponse.tests);
-  await processPassedTests(importResponse.tests);
-
-  console.log('Finished syncing Xray and Jira.');
-}
-
-main().catch(err => {
-  console.error('Fatal error:', err);
+// Run the script
+main(process.argv[2] || 'results.json').catch(err => {
+  console.error("❌ Error:", err.response?.data || err.message || err);
   process.exit(1);
 });

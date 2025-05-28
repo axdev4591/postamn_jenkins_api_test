@@ -7,17 +7,27 @@
     "sync": "node sync_xray_jira.js results/results.json"
   },
   "dependencies": {
-    "axios": "^1.6.0"
+    "axios": "^1.6.0",
+    "dotenv": "^16.5.0"
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/axdev4591/postamn_jenkins_api_test.git"
+    "url": "git+https://github.com/axdev4591/postman_jenkins_api_test.git"
   },
-  "keywords": [],
-  "author": "",
+  "keywords": [
+    "Jira",
+    "Xray",
+    "Postman",
+    "Jenkins",
+    "API Testing",
+    "CI/CD",
+    "Bug Tracking",
+    "Test Automation"
+  ],
+  "author": "Axel Mouele <axelmouele4591@gmail.com>",
   "license": "ISC",
   "bugs": {
-    "url": "https://github.com/axdev4591/postamn_jenkins_api_test/issues"
+    "url": "https://github.com/axdev4591/postman_jenkins_api_test/issues"
   },
-  "homepage": "https://github.com/axdev4591/postamn_jenkins_api_test#readme"
+  "homepage": "https://github.com/axdev4591/postman_jenkins_api_test#readme"
 }

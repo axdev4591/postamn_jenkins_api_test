@@ -14,7 +14,7 @@ pipeline {
     JIRA_PROJECT_KEY = 'SCRUM'
     BUG_ISSUE_TYPE = 'Bug'
     XRAY_BASE_URL = 'https://xray.cloud.getxray.app'
-    JIRA_USER = 'axelmouele4591@gmail.com'  // Change accordingly
+    JIRA_USER = 'axelmouele4591@gmail.com' // Change as needed
   }
 
   parameters {
@@ -24,6 +24,7 @@ pipeline {
   }
 
   stages {
+
     stage('Checkout Repository') {
       steps {
         checkout scm
@@ -78,6 +79,24 @@ pipeline {
       }
     }
 
+    stage('Set Build Name with Test Execution Key') {
+      steps {
+        script {
+          def results = readJSON file: 'results.json'
+          def collectionName = results.collection.info.name
+
+          // Match [TE-xx] from collection name
+          def matcher = collectionName =~ /\[(TE-\d+)\]/
+          if (!matcher) {
+            error("❌ Postman collection name must include a valid [TE-xx] execution key.")
+          }
+
+          def execKey = matcher[0][1]
+          currentBuild.displayName = "${execKey} #${env.BUILD_NUMBER}"
+        }
+      }
+    }
+
     stage('Install Node.js Dependencies') {
       steps {
         sh 'npm install'
@@ -105,6 +124,12 @@ pipeline {
             node scripts/sync_xray_jira.js results.json
           '''
         }
+      }
+    }
+
+    stage('Archive Results') {
+      steps {
+        archiveArtifacts artifacts: 'results.json', onlyIfSuccessful: false
       }
     }
   }

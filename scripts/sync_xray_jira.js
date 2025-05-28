@@ -11,9 +11,9 @@ const TEST_STATUS = {
 
 // Constants for Jira bug lifecycle statuses (you can adjust as needed)
 const BUG_LIFECYCLE = {
-  CREATED: 'Created',
-  REOPENED: 'Reopened',
-  CLOSED: 'Closed',
+  CREATED: 'OPEN',
+  REOPENED: 'REOPENED',
+  CLOSED: 'CLOSED',
 };
 
 // Labels applied to Test Executions, Test Sets, Test Cases, and Bugs
@@ -25,7 +25,7 @@ const RE_TEST_SET = /\[(TS-\d+)\]/;          // e.g. [TS-01]
 const RE_TEST_CASE = /\[(API\d+-TS\d+-TE\d+)\]/;  // e.g. [API01-TS01-TE01]
 
 // Link to Jenkins pipeline (to be customized)
-const JENKINS_PIPELINE_LINK = 'https://your-jenkins-instance/job/your-pipeline';
+const JENKINS_PIPELINE_LINK = 'https://af21-2001-861-e382-1c30-3121-f5e-3445-26f1.ngrok-free.app/job/postman-xray-pipeline/';
 
 // Entry point of the script
 async function main() {

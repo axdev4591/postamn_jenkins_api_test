@@ -177,6 +177,13 @@ function buildUrl(urlObj) {
   return `${protocol}://${host}/${path}`;
 }
 
+function extractParams(url) {
+
+}
+function extractTestScripts(event) {
+
+}
+
 
 // ============================
 // 🚀 Main Sync Function
@@ -215,8 +222,8 @@ async function main() {
       const method = exec.requestExecuted?.method || 'GET';
       const body = JSON.stringify(exec.requestExecuted?.body || {});
       const headers = JSON.stringify(exec.requestExecuted?.headers || []);
-      const params = extractParams(exec.requestExecuted?.url);
-      const scripts = extractTestScripts(exec.requestExecuted?.event);
+      const params = JSON.stringify(exec?.url.query || []);//extractParams(exec.requestExecuted?.url);
+      const scripts = JSON.stringify(exec?.tests || []); //extractTestScripts(exec.requestExecuted?.event);
 
       const description = `
 **API Info:**

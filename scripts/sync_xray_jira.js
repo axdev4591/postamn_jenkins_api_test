@@ -1,35 +1,44 @@
-// Required modules
+// ============================
+// 🔧 Required Node.js Modules
+// ============================
 const fs = require('fs');
 const path = require('path');
 const axios = require('axios');
 
-// Constants for test statuses
+// =============================
+// 🔐 Environment Configuration
+// =============================
+require('dotenv').config(); // Optional: load .env if running locally
+
+// ======================
+// 🔁 Constants and Enums
+// ======================
 const TEST_STATUS = { PASSED: 'PASSED', FAILED: 'FAILED', SKIPPED: 'SKIPPED' };
-
-// Bug lifecycle statuses
 const BUG_LIFECYCLE = { CREATED: 'OPEN', REOPENED: 'REOPENED', CLOSED: 'CLOSED' };
-
-// Labels applied to all issues
 const LABELS = ['jenkins', 'postman', 'automation', 'TNR'];
 
-// Regex patterns
+// =====================
+// 🔍 Regex Definitions
+// =====================
 const RE_TEST_EXECUTION = /\[(TE-\d+)\]/;
 const RE_TEST_SET = /\[(TS-\d+)\]/;
 const RE_TEST_CASE = /\[(API\d+-TS\d+-TE\d+)\]/;
 
-// Jenkins URL
+// 🔗 Jenkins Pipeline URL for traceability in test and bug descriptions
 const JENKINS_PIPELINE_LINK = 'https://your-jenkins-pipeline-link.example.com';
 
-// Auth headers for Jira
+// 🔐 Jira Auth Configuration
 const JIRA_AUTH = {
   username: process.env.JIRA_USER,
   password: process.env.JIRA_API_TOKEN
 };
 
-// Global Xray access token
+// 🌍 Global Xray Access Token
 let XRAY_TOKEN = null;
 
-// Authenticate to Xray and store token
+// ============================
+// 🔐 Authenticate to Xray API
+// ============================
 async function authenticateXray() {
   const res = await axios.post(`${process.env.XRAY_BASE_URL}/api/v2/authenticate`, {
     client_id: process.env.XRAY_CLIENT_ID,
@@ -38,7 +47,9 @@ async function authenticateXray() {
   XRAY_TOKEN = res.data;
 }
 
-// Create/update Xray Test Case and link it to test set & execution
+// =================================================================
+// 🔁 Create/Update Xray Test Case and Link to TestSet/TestExecution
+// =================================================================
 async function createOrUpdateXrayTestCase(key, name, description, labels, testSetKey, testExecutionKey) {
   console.log(`🔁 Syncing Xray test case ${key}...`);
 
@@ -48,7 +59,7 @@ async function createOrUpdateXrayTestCase(key, name, description, labels, testSe
     projectKey: process.env.JIRA_PROJECT_KEY,
     summary: name,
     description,
-    labels,
+    labels
   }, {
     headers: {
       Authorization: `Bearer ${XRAY_TOKEN}`
@@ -57,24 +68,20 @@ async function createOrUpdateXrayTestCase(key, name, description, labels, testSe
 
   const testCaseId = response.data.key;
 
-  // Link to test set
   await axios.post(`${process.env.XRAY_BASE_URL}/api/v2/testset/${testSetKey}/test`, [testCaseId], {
-    headers: {
-      Authorization: `Bearer ${XRAY_TOKEN}`
-    }
+    headers: { Authorization: `Bearer ${XRAY_TOKEN}` }
   });
 
-  // Link to test execution
   await axios.post(`${process.env.XRAY_BASE_URL}/api/v2/testexecution/${testExecutionKey}/test`, [testCaseId], {
-    headers: {
-      Authorization: `Bearer ${XRAY_TOKEN}`
-    }
+    headers: { Authorization: `Bearer ${XRAY_TOKEN}` }
   });
 
   console.log(`✅ Test Case ${testCaseId} linked to [${testSetKey}] and [${testExecutionKey}]`);
 }
 
-// Create or update Jira Bug linked to a test case
+// =====================================================
+// 🐞 Create or Update Jira Bug Linked to a Test Case
+// =====================================================
 async function createOrUpdateJiraBug(testCaseKey, summary, description, labels) {
   console.log(`🐞 Checking if bug exists for test case ${testCaseKey}...`);
 
@@ -109,7 +116,9 @@ async function createOrUpdateJiraBug(testCaseKey, summary, description, labels) 
   return bugKey;
 }
 
-// Attach file to Jira issue
+// ===================================
+// 📎 Attach Log File to Jira Issue
+// ===================================
 async function attachFileToJiraIssue(issueKey, filePath) {
   const data = fs.createReadStream(filePath);
 
@@ -124,28 +133,26 @@ async function attachFileToJiraIssue(issueKey, filePath) {
   console.log(`📎 Attached log to ${issueKey}`);
 }
 
-// Update Jira bug status
-// Update Jira bug status only if transition is necessary
+// ======================================
+// 🔄 Transition Jira Bug Status
+// ======================================
 async function updateJiraBugStatus(bugKey, desiredStatus) {
   const transitions = {
-    OPEN: '11',      // Replace with your actual ID for OPEN
-    REOPENED: '21',  // Replace with your actual ID for REOPENED
-    CLOSED: '31'     // Replace with your actual ID for CLOSED
+    OPEN: '11',      // Replace with actual transition ID
+    REOPENED: '21',
+    CLOSED: '31'
   };
 
-  // Fetch current bug status
   const bug = await axios.get(`${process.env.JIRA_BASE_URL}/rest/api/3/issue/${bugKey}`, {
     auth: JIRA_AUTH
   });
-  const currentStatus = bug.data.fields.status.name.toUpperCase();
 
-  // Avoid transition if already in the desired status
+  const currentStatus = bug.data.fields.status.name.toUpperCase();
   if (currentStatus === desiredStatus) {
     console.log(`🔁 Bug ${bugKey} already in desired status: ${desiredStatus}`);
     return;
   }
 
-  // Only transition if valid
   const transitionId = transitions[desiredStatus];
   if (!transitionId) {
     console.warn(`⚠️ Unknown transition for status: ${desiredStatus}`);
@@ -158,11 +165,12 @@ async function updateJiraBugStatus(bugKey, desiredStatus) {
     auth: JIRA_AUTH
   });
 
-  console.log(`🔄 Bug ${bugKey} transitioned from ${currentStatus} to ${desiredStatus}`);
+  console.log(`🔄 Bug ${bugKey} transitioned to ${desiredStatus}`);
 }
 
-
-// Create a log file for failed test
+// ==================================
+// 📄 Create Log File for Test Result
+// ==================================
 async function createLogFileForTest(testCaseKey, result) {
   const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
   const fileName = `log_${testCaseKey}_${timestamp}.txt`;
@@ -172,7 +180,9 @@ async function createLogFileForTest(testCaseKey, result) {
   return filePath;
 }
 
-// Build full URL from Postman format
+// ===================================================
+// 🔎 Extract Request URL, Params, and Test Scripts
+// ===================================================
 function buildUrl(urlObj) {
   if (typeof urlObj === 'string') return urlObj;
   const host = Array.isArray(urlObj.host) ? urlObj.host.join('.') : urlObj.host;
@@ -180,7 +190,6 @@ function buildUrl(urlObj) {
   return `${urlObj.protocol || 'https'}://${host}/${path}`;
 }
 
-// Extract query params from Postman URL
 function extractParams(urlObj) {
   if (!urlObj || !urlObj.query) return '{}';
   const params = {};
@@ -190,13 +199,11 @@ function extractParams(urlObj) {
   return JSON.stringify(params);
 }
 
-// Extract test script lines
 function extractTestScripts(events) {
   const event = events?.find(e => e.listen === 'test');
   return event?.script?.exec?.join('\n') || 'No tests';
 }
 
-// Find test result from Postman execution
 function findTestResult(results, testKey) {
   for (const run of results.run.executions) {
     if (run.item.name.includes(testKey)) {
@@ -209,7 +216,9 @@ function findTestResult(results, testKey) {
   return null;
 }
 
-// Entry point
+// ============================
+// 🚀 Main Sync Function
+// ============================
 async function main() {
   try {
     const resultsFile = process.argv[2];
@@ -247,45 +256,38 @@ async function main() {
         const scripts = extractTestScripts(item.event);
 
         const description = `
-              **API Info:**
-              - Method: ${item.request.method}
-              - URL: ${url}
-              - Body: ${body}
-              - Headers: ${headers}
-              - Params: ${params}
+**API Info:**
+- Method: ${item.request.method}
+- URL: ${url}
+- Body: ${body}
+- Headers: ${headers}
+- Params: ${params}
 
-              **Tests:**  
-              ${scripts}
+**Tests:**  
+${scripts}
 
-              **Triggered by Jenkins:**  
-              Pipeline: ${JENKINS_PIPELINE_LINK}
-              Execution: ${testExecutionKeyFormatted}
-              Set: ${testSetKeyFormatted}
-                      `.trim();
+**Triggered by Jenkins:**  
+Pipeline: ${JENKINS_PIPELINE_LINK}  
+Execution: ${testExecutionKeyFormatted}  
+Set: ${testSetKeyFormatted}
+        `.trim();
 
         const result = findTestResult(results, testCaseKey) || { status: TEST_STATUS.SKIPPED };
 
         await createOrUpdateXrayTestCase(testCaseKey, name, description, LABELS, testSetKeyFormatted, testExecutionKeyFormatted);
 
-        // Try to find or create the bug
         const bugSummary = `Bug - ${name}`;
-        const bugKey = await createOrUpdateJiraBug(testCaseKey, bugSummary, `Auto-generated for ${testCaseKey}`, LABELS);
+        const bugDescription = `Auto-generated bug for test case ${testCaseKey}.`;
+
+        const bugKey = await createOrUpdateJiraBug(testCaseKey, bugSummary, bugDescription, LABELS);
 
         if (result.status === TEST_STATUS.FAILED) {
-          const bugDescription = `
-              Automatically created bug for test case ${testCaseKey}.  
-              Failure details attached.
-
-              Linked to: ${testCaseKey}
-          `.trim();
-
           const logFile = await createLogFileForTest(testCaseKey, result);
           await attachFileToJiraIssue(bugKey, logFile);
           await updateJiraBugStatus(bugKey, BUG_LIFECYCLE.CREATED);
         } else if (result.status === TEST_STATUS.PASSED) {
           await updateJiraBugStatus(bugKey, BUG_LIFECYCLE.CLOSED);
         }
-
       }
     }
 
@@ -296,5 +298,7 @@ async function main() {
   }
 }
 
-// Run script
+// ====================
+// 🏁 Run the Script
+// ====================
 main();

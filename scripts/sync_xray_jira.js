@@ -125,17 +125,30 @@ async function attachFileToJiraIssue(issueKey, filePath) {
 }
 
 // Update Jira bug status
-async function updateJiraBugStatus(bugKey, status) {
-  // Use your actual transition IDs based on your Jira workflow
+// Update Jira bug status only if transition is necessary
+async function updateJiraBugStatus(bugKey, desiredStatus) {
   const transitions = {
-    OPEN: '11',
-    REOPENED: '21',
-    CLOSED: '31'
+    OPEN: '11',      // Replace with your actual ID for OPEN
+    REOPENED: '21',  // Replace with your actual ID for REOPENED
+    CLOSED: '31'     // Replace with your actual ID for CLOSED
   };
 
-  const transitionId = transitions[status];
+  // Fetch current bug status
+  const bug = await axios.get(`${process.env.JIRA_BASE_URL}/rest/api/3/issue/${bugKey}`, {
+    auth: JIRA_AUTH
+  });
+  const currentStatus = bug.data.fields.status.name.toUpperCase();
+
+  // Avoid transition if already in the desired status
+  if (currentStatus === desiredStatus) {
+    console.log(`🔁 Bug ${bugKey} already in desired status: ${desiredStatus}`);
+    return;
+  }
+
+  // Only transition if valid
+  const transitionId = transitions[desiredStatus];
   if (!transitionId) {
-    console.warn(`⚠️ Unknown bug transition for status: ${status}`);
+    console.warn(`⚠️ Unknown transition for status: ${desiredStatus}`);
     return;
   }
 
@@ -145,8 +158,9 @@ async function updateJiraBugStatus(bugKey, status) {
     auth: JIRA_AUTH
   });
 
-  console.log(`🔄 Bug ${bugKey} transitioned to ${status}`);
+  console.log(`🔄 Bug ${bugKey} transitioned from ${currentStatus} to ${desiredStatus}`);
 }
+
 
 // Create a log file for failed test
 async function createLogFileForTest(testCaseKey, result) {
@@ -253,19 +267,25 @@ async function main() {
 
         await createOrUpdateXrayTestCase(testCaseKey, name, description, LABELS, testSetKeyFormatted, testExecutionKeyFormatted);
 
+        // Try to find or create the bug
+        const bugSummary = `Bug - ${name}`;
+        const bugKey = await createOrUpdateJiraBug(testCaseKey, bugSummary, `Auto-generated for ${testCaseKey}`, LABELS);
+
         if (result.status === TEST_STATUS.FAILED) {
           const bugDescription = `
               Automatically created bug for test case ${testCaseKey}.  
               Failure details attached.
 
               Linked to: ${testCaseKey}
-                        `.trim();
+          `.trim();
 
-          const bugKey = await createOrUpdateJiraBug(testCaseKey, `Bug - ${name}`, bugDescription, LABELS);
           const logFile = await createLogFileForTest(testCaseKey, result);
           await attachFileToJiraIssue(bugKey, logFile);
           await updateJiraBugStatus(bugKey, BUG_LIFECYCLE.CREATED);
+        } else if (result.status === TEST_STATUS.PASSED) {
+          await updateJiraBugStatus(bugKey, BUG_LIFECYCLE.CLOSED);
         }
+
       }
     }
 

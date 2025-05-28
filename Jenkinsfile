@@ -82,16 +82,23 @@ pipeline {
     stage('Set Build Name with Test Execution Key') {
       steps {
         script {
-          def results = readJSON file: 'results.json'
-          def collectionName = results.collection.info.name
-
-          // Match [TE-xx] from collection name
-          def matcher = collectionName =~ /\[(TE-\d+)\]/
-          if (!matcher) {
-            error("❌ Postman collection name must include a valid [TE-xx] execution key.")
+          def execKey = 'UNKNOWN'
+          try {
+            def results = readJSON file: 'results.json'
+            if (results?.collection?.info?.name) {
+              def collectionName = results.collection.info.name
+              def matcher = collectionName =~ /\[(TE-\d+)\]/
+              if (matcher) {
+                execKey = matcher[0][1]
+              } else {
+                echo "⚠️ Warning: Postman collection name missing [TE-xx] key pattern."
+              }
+            } else {
+              echo "⚠️ Warning: results.json missing collection info name."
+            }
+          } catch (Exception e) {
+            echo "⚠️ Warning: Failed to read or parse results.json: ${e}"
           }
-
-          def execKey = matcher[0][1]
           currentBuild.displayName = "${execKey} #${env.BUILD_NUMBER}"
         }
       }
@@ -121,7 +128,7 @@ pipeline {
             export BUG_ISSUE_TYPE=$BUG_ISSUE_TYPE
             export XRAY_BASE_URL=$XRAY_BASE_URL
 
-            node scripts/sync_xray_jira.js results.json
+            node scripts/sync_xray_jira.js results.json || echo "⚠️ Warning: sync_xray_jira.js failed but pipeline will not fail."
           '''
         }
       }

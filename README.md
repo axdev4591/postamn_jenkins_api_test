@@ -38,6 +38,7 @@ Example request name: `[API01-TS01-TE01] Get videogames list`
 - **Jira & Xray setup:**  
   - Jira project with Test and Test Execution issue types.  
   - API tokens for Jira and Xray.
+  - Install jenkins plugins: Nodejs and Pipeline Utility Steps
 
 - **Postman CLI installed on Jenkins or local machine.**
 

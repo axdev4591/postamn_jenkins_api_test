@@ -54,7 +54,7 @@ async function createOrUpdateXrayTestCase(key, name, description, labels, testSe
   console.log(`🔁 Syncing Xray test case ${key}...`);
 
   const response = await axios.post(`${process.env.XRAY_BASE_URL}/api/v2/import/test`, {
-    testType: 'Manual',
+    testType: 'Jenkins_postman',
     testKey: key,
     projectKey: process.env.JIRA_PROJECT_KEY,
     summary: name,
@@ -167,6 +167,16 @@ async function createLogFileForTest(testCaseKey, result) {
   fs.writeFileSync(filePath, content);
   return filePath;
 }
+
+// Build full URL from Postman URL object
+function buildUrl(urlObj) {
+  if (typeof urlObj === 'string') return urlObj;
+  const protocol = urlObj.protocol || 'https';
+  const host = Array.isArray(urlObj.host) ? urlObj.host.join('.') : urlObj.host;
+  const path = Array.isArray(urlObj.path) ? urlObj.path.join('/') : urlObj.path;
+  return `${protocol}://${host}/${path}`;
+}
+
 
 // ============================
 // 🚀 Main Sync Function

@@ -8,5 +8,16 @@
   },
   "dependencies": {
     "axios": "^1.6.0"
-  }
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/axdev4591/postamn_jenkins_api_test.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/axdev4591/postamn_jenkins_api_test/issues"
+  },
+  "homepage": "https://github.com/axdev4591/postamn_jenkins_api_test#readme"
 }

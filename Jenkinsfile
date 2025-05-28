@@ -9,6 +9,12 @@ pipeline {
     POSTMAN_CACHE_DIR = "${JENKINS_HOME}/.postman-cli-cache"
     POSTMAN_BIN = "${JENKINS_HOME}/.postman-cli-cache/PostmanCLI/postman"
     PATH = "${JENKINS_HOME}/.postman-cli-cache/PostmanCLI:${env.PATH}"
+
+    JIRA_BASE_URL = 'https://axelmouele4591.atlassian.net'
+    JIRA_PROJECT_KEY = 'SCRUM'
+    BUG_ISSUE_TYPE = 'Bug'
+    XRAY_BASE_URL = 'https://xray.cloud.getxray.app'
+    JIRA_USER = 'axelmouele4591@gmail.com'  // Change accordingly
   }
 
   parameters {
@@ -18,6 +24,12 @@ pipeline {
   }
 
   stages {
+    stage('Checkout Repository') {
+      steps {
+        checkout scm
+      }
+    }
+
     stage('Install Postman CLI') {
       steps {
         sh '''
@@ -66,6 +78,12 @@ pipeline {
       }
     }
 
+    stage('Install Node.js Dependencies') {
+      steps {
+        sh 'npm install'
+      }
+    }
+
     stage('Sync to Jira/Xray') {
       steps {
         withCredentials([
@@ -75,6 +93,15 @@ pipeline {
         ]) {
           sh '''
             set -ex
+            export JIRA_API_TOKEN=$JIRA_API_TOKEN
+            export XRAY_CLIENT_ID=$XRAY_CLIENT_ID
+            export XRAY_CLIENT_SECRET=$XRAY_CLIENT_SECRET
+            export JIRA_BASE_URL=$JIRA_BASE_URL
+            export JIRA_USER=$JIRA_USER
+            export JIRA_PROJECT_KEY=$JIRA_PROJECT_KEY
+            export BUG_ISSUE_TYPE=$BUG_ISSUE_TYPE
+            export XRAY_BASE_URL=$XRAY_BASE_URL
+
             node scripts/sync_xray_jira.js results.json
           '''
         }

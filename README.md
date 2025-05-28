@@ -69,7 +69,7 @@ XRAY_BASE_URL=https://xray.cloud.getxray.app/api/v2
 ## Setup
 
 1. Clone the repository.
-2. Run `npm install` to install dependencies (`axios`, `form-data`, `dotenv`).
+2. Run (npm init -y) `npm install` to install dependencies (`axios`, `form-data`, `dotenv`).
 3. Configure Jenkins credentials:
    - `POSTMAN_API_KEY` — Your Postman API key.
    - `JIRA_USER` and `JIRA_API_TOKEN` or set as environment variables.

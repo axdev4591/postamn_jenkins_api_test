@@ -1,5 +1,5 @@
 // sync_xray_jira.js
-// Description: Syncs Postman results with Xray test cases and Jira bugs
+// Description: Syncs Postman results with Xray test cases and Jira bugs, including enhanced test descriptions
 
 require('dotenv').config();
 const fs = require('fs');
@@ -23,6 +23,7 @@ const auth = {
 };
 
 let xrayToken = null;
+
 
 /**
  * Authenticate with Xray Cloud and get a token
@@ -82,6 +83,7 @@ async function createBug(testKey, summary, logs) {
   return issueKey;
 }
 
+
 /**
  * Reopen a closed Jira issue
  */
@@ -138,16 +140,31 @@ async function attachFile(issueKey, content) {
 }
 
 /**
- * Create a test case in Xray (if not already exists)
+ * Create an Xray Test Case with enhanced description:
+ * Includes bold header + Postman test script content (if any)
  */
-async function createXrayTest(name) {
+async function createXrayTest(name, postmanItem) {
+  const boldHeader = "**This is an automated Postman test API triggered from Jenkins pipeline.**";
+  let postScript = "";
+
+  try {
+    const testEvent = postmanItem.event?.find(e => e.listen === "test");
+    if (testEvent?.script?.exec) {
+      postScript = "```js\n" + testEvent.script.exec.join('\n') + "\n```";
+    }
+  } catch {
+    postScript = "";
+  }
+
+  const fullDescription = `${boldHeader}\n\n${postScript}`;
+
   const res = await axios.post(`${JIRA_BASE_URL}/rest/api/2/issue`, {
     fields: {
       project: { key: JIRA_PROJECT_KEY },
       summary: name,
       issuetype: { name: 'Test' },
-      description: 'Test generated from Postman collection',
-      customfield_10049: 'Jenkins_postman' // Change this to match your custom field ID if needed
+      description: fullDescription,
+      customfield_10049: 'jenkins_postman' // Replace with actual field ID if required
     }
   }, { auth });
 
@@ -209,24 +226,20 @@ async function main(resultsPath) {
     const name = run.item.name;
     let testKey = extractTestKey(name);
 
-    // If testKey is not embedded, create a new test case
     if (!testKey) {
-      testKey = await createXrayTest(name);
+      testKey = await createXrayTest(name, run.item);
     }
 
-    // Generate log content
     const logs = `Request:\n${JSON.stringify(run.request, null, 2)}\n\nResponse:\n${JSON.stringify(run.response, null, 2)}`;
     const failed = run.assertions?.some(a => a.error);
 
-    // Update test result in Xray
     await submitResultToXray(testKey, failed ? "FAIL" : "PASS", executionKey);
 
-    // Bug sync
     const bug = await getBugForTestKey(testKey);
     if (failed) {
       if (!bug) {
         await createBug(testKey, name, logs);
-      } else if (['done', 'close'].includes(bug.fields.status.name.toLowerCase())) {
+      } else if (['done', 'closed'].includes(bug.fields.status.name.toLowerCase())) {
         await reopenIssue(bug.key);
         await attachFile(bug.key, logs);
       } else {
@@ -238,7 +251,7 @@ async function main(resultsPath) {
   }
 }
 
-// Run the script
+// Run script
 main(process.argv[2] || 'results.json').catch(err => {
   console.error("❌ Error:", err.response?.data || err.message || err);
   process.exit(1);

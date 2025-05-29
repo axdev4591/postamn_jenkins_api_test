@@ -279,7 +279,7 @@ async function syncPostmanResults(resultsJsonPath) {
   try {
     // Read and parse Postman results JSON file
     const resultsData = JSON.parse(fs.readFileSync(resultsJsonPath, 'utf-8'));
-    const collectionName = resultsData.run?.collection?.name || 'Unnamed Collection';
+    const collectionName = resultsData.run?.meta?.collectionName || 'Unnamed Collection';
 
     // Extract Test Execution Key from collection name
     const teMatch = collectionName.match(RE_TEST_EXECUTION);

@@ -130,11 +130,11 @@ async function createOrUpdateXrayTestCase(key, name, description, labels, testSe
       console.log(`✅ Created new test case: ${testCaseKey}`);
     }
 
-    // Link to Test Set
+
+    // Link to Test Set (via Jira issue link API)
     console.log(`🔗 Linking test to Test Set: ${testSetKey}`);
-    await axios.post(buildApiUrl(process.env.XRAY_BASE_URL, `/api/v2/testset/${testSetKey}/test`), [testCaseKey], {
-      headers: { Authorization: `Bearer ${XRAY_TOKEN}` }
-    });
+    await linkTestToTestSet(testCaseKey, testSetKey);
+
 
     // Link to Test Execution
     console.log(`🔗 Linking test to Test Execution: ${testExecutionKey}`);
@@ -169,6 +169,44 @@ function formatToADF(text) {
 }
 
 
+/**
+ * Links a test case to a test set in Jira using the issue link API.
+ * This replaces the invalid Xray endpoint (/api/v2/testset/{key}/test).
+ *
+ * @param {string} testKey - The key of the test case (e.g. "SCRUM-2").
+ * @param {string} testSetKey - The key of the test set (e.g. "TS-01").
+ */
+async function linkTestToTestSet(testKey, testSetKey) {
+  const url = `${JIRA_BASE_URL}/rest/api/3/issueLink`;
+
+  const payload = {
+    type: {
+      name: "Tests" // This depends on your Jira/Xray config – "Tests" is usually the default link type
+    },
+    inwardIssue: {
+      key: testSetKey
+    },
+    outwardIssue: {
+      key: testKey
+    }
+  };
+
+  try {
+    const response = await axios.post(url, payload, {
+      auth: {
+        username: JIRA_USER,
+        password: JIRA_API_TOKEN
+      },
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    });
+
+    console.log(`🔗 Linked test ${testKey} to Test Set ${testSetKey}`);
+  } catch (error) {
+    console.error(`❌ Failed to link test ${testKey} to Test Set ${testSetKey}:`, error.response?.data || error.message);
+  }
+}
 
 
 // 🔥 Main Sync Function
@@ -191,6 +229,7 @@ async function syncPostmanResults(resultsJsonPath) {
       const request = execution?.requestExecuted || {};
       const event = execution?.tests || [];
       const itemName = request?.name || 'Unnamed Test';
+      const desc = request?.description.content;
 
       console.log(`🔍 Processing test: "${itemName}"`);
 
@@ -201,14 +240,14 @@ async function syncPostmanResults(resultsJsonPath) {
       }
 
       const testCaseKeyFromName = testCaseMatch[1];
-      const testName = (execution.tests?.[0]?.name || itemName).trim();
+      const testName = (request.name || itemName).trim();
 
       const requestUrl = buildRequestUrl(request.url);
       const method = request.method || 'GET';
-      const queryParams = extractParams(request.url);
-      const testScripts = extractTestScripts(event);
+      const queryParams = request.url.query//extractParams(request.url);
+      const testScripts = event[0].name//extractTestScripts(event);
       const description =
-        `Request:\n- URL: ${requestUrl}\n- Method: ${method}\n- Query Params:\n${queryParams}\n\n` +
+        ` ${desc} \nRequest:\n- URL: ${requestUrl}\n- Method: ${method}\n- Query Params:\n${queryParams}\n\n` +
         `Test Scripts:\n${testScripts}\n\nLinked Jenkins Pipeline: ${JENKINS_PIPELINE_LINK}`;
 
 

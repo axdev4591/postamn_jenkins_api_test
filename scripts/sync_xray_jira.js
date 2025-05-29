@@ -40,15 +40,23 @@ let XRAY_TOKEN = null;
 // 🔧 Build full URL from Postman or string URL
 function buildUrl(urlObj) {
   if (typeof urlObj === 'string') return urlObj;
-  const protocol = urlObj.protocol || 'https';
-  const host = Array.isArray(urlObj.host) ? urlObj.host.join('.') : urlObj.host;
-  const path = Array.isArray(urlObj.path) ? urlObj.path.join('/') : urlObj.path;
-  return `${protocol}://${host}/${path}`;
+  if (!urlObj) return 'undefined';
+
+  const protocol = urlObj.protocol || 'undefined';
+  const host = Array.isArray(urlObj.host) ? urlObj.host.join('.') : (urlObj.host || 'undefined');
+  const pathPart = Array.isArray(urlObj.path) ? urlObj.path.join('/') : (urlObj.path || 'undefined');
+
+  // Avoid double slashes if pathPart is 'undefined'
+  if (pathPart === 'undefined') {
+    return `${protocol}://${host}`;
+  }
+  return `${protocol}://${host}/${pathPart}`;
 }
 
 function extractParams(urlObj) {
-  if (!urlObj?.query || !Array.isArray(urlObj.query)) return 'None';
-  return urlObj.query.map(param => `${param.key}=${param.value}`).join('\n');
+  if (!urlObj?.query || !Array.isArray(urlObj.query)) return 'undefined';
+  if (urlObj.query.length === 0) return 'None';
+  return urlObj.query.map(param => `${param.key || 'undefined'}=${param.value || 'undefined'}`).join('\n');
 }
 
 function extractTestScripts(event) {
@@ -65,7 +73,7 @@ function extractTestScripts(event) {
 // ============================
 async function authenticateXray() {
   const res = await axios.post(buildUrl({
-    host: process.env.XRAY_BASE_URL.replace(/^https?:\/\//, ''),
+    host: process.env.XRAY_BASE_URL?.replace(/^https?:\/\//, '') || '',
     path: 'api/v2/authenticate'
   }), {
     client_id: process.env.XRAY_CLIENT_ID,
@@ -95,7 +103,7 @@ async function createOrUpdateXrayTestCase(key, name, description, labels, testSe
       console.log(`↩️ Test case already exists: ${testCaseKey}`);
     } else {
       const createRes = await axios.post(buildUrl({
-        host: process.env.JIRA_BASE_URL.replace(/^https?:\/\//, ''),
+        host: process.env.JIRA_BASE_URL?.replace(/^https?:\/\//, '') || '',
         path: 'rest/api/3/issue'
       }), {
         fields: {
@@ -136,7 +144,7 @@ async function createOrUpdateJiraBug(testCaseKey, summary, description, labels) 
   const jql = `summary ~ "${escapedSummary}" AND project = "${process.env.JIRA_PROJECT_KEY}"`;
 
   const search = await axios.get(buildUrl({
-    host: process.env.JIRA_BASE_URL.replace(/^https?:\/\//, ''),
+    host: process.env.JIRA_BASE_URL?.replace(/^https?:\/\//, '') || '',
     path: 'rest/api/3/search'
   }), {
     auth: JIRA_AUTH,
@@ -152,7 +160,7 @@ async function createOrUpdateJiraBug(testCaseKey, summary, description, labels) 
   }
 
   const res = await axios.post(buildUrl({
-    host: process.env.JIRA_BASE_URL.replace(/^https?:\/\//, ''),
+    host: process.env.JIRA_BASE_URL?.replace(/^https?:\/\//, '') || '',
     path: 'rest/api/3/issue'
   }), {
     fields: {
@@ -235,14 +243,14 @@ async function main() {
     if (!file) throw new Error('❌ Missing Postman results.json file path');
 
     const results = JSON.parse(fs.readFileSync(file, 'utf-8'));
-    const collectionName = results.run?.meta?.collectionName;
-    if (!collectionName) throw new Error('❌ Missing collectionName in results');
+    const collectionName = results.run?.meta?.collectionName || 'undefined';
+    if (collectionName === 'undefined') throw new Error('❌ Missing collectionName in results');
 
     const testExecutionKeyMatch = collectionName.match(RE_TEST_EXECUTION);
     if (!testExecutionKeyMatch) throw new Error('❌ Missing [TE-xx] in collection name');
     const testExecutionKey = testExecutionKeyMatch[1];
 
-    const executions = results.run.executions || [];
+    const executions = results.run?.executions || [];
 
     await authenticateXray();
 
@@ -261,9 +269,9 @@ async function main() {
 
       const request = exec.request || exec.item?.request || {};
       const url = buildUrl(request?.url);
-      const method = request?.method || 'GET';
-      const body = JSON.stringify(request?.body || {});
-      const headers = JSON.stringify(request?.header || []);
+      const method = request?.method || 'undefined';
+      const body = JSON.stringify(request?.body || 'undefined');
+      const headers = JSON.stringify(request?.header || 'undefined');
       const params = extractParams(request?.url);
       const scripts = extractTestScripts(request?.event);
 
@@ -294,20 +302,16 @@ Set: ${ts}
       if (status === TEST_STATUS.FAILED) {
         const logFile = await createLogFileForTest(testCaseKey, result);
         await attachFileToJiraIssue(bugKey, logFile);
-        await updateJiraBugStatus(bugKey, BUG_LIFECYCLE.CREATED);
-      } else {
+        await updateJiraBugStatus(bugKey, BUG_LIFECYCLE.REOPENED);
+      } else if (status === TEST_STATUS.PASSED) {
         await updateJiraBugStatus(bugKey, BUG_LIFECYCLE.CLOSED);
       }
     }
+    console.log('✅ Sync complete.');
 
-    console.log('✅ Sync complete');
   } catch (err) {
-    console.error('❌ Sync failed:', err.message);
-    process.exit(1);
+    console.error('❌ Fatal error:', err.message || err);
   }
 }
 
-// ====================
-// 🏁 Run the Script
-// ====================
 main();

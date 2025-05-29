@@ -82,7 +82,7 @@ async function createOrUpdateXrayTestCase(key, name, description, labels, testSe
 
     console.log(`✅ Linked to [${testSetKey}] and [${testExecutionKey}]`);
   } catch (error) {
-    console.error(`❌ Error calling ${url}`);
+    console.error(`❌ Error calling ${process.env.XRAY_BASE_URL}/api/v2/import/test`);
     if (error.response) {
       console.error('Status:', error.response.status);
       console.error('Data:', JSON.stringify(error.response.data, null, 2));

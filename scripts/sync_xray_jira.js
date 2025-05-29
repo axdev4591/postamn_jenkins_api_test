@@ -40,7 +40,10 @@ let XRAY_TOKEN = null;
 // 🔐 Authenticate to Xray API
 // ============================
 async function authenticateXray() {
-  const res = await axios.post(buildUrl({ host: process.env.XRAY_BASE_URL.replace(/^https?:\/\//, ''), path: 'api/v2/authenticate' }), {
+  const res = await axios.post(buildUrl({
+    host: process.env.XRAY_BASE_URL.replace(/^https?:\/\//, ''),
+    path: 'api/v2/authenticate'
+  }), {
     client_id: process.env.XRAY_CLIENT_ID,
     client_secret: process.env.XRAY_CLIENT_SECRET
   });
@@ -270,7 +273,7 @@ async function main() {
       const url = buildUrl(exec.requestExecuted?.url);
       const method = exec.requestExecuted?.method || 'GET';
       const body = JSON.stringify(exec.requestExecuted?.body || {});
-      const headers = JSON.stringify(exec.requestExecuted?.headers || []);
+      const headers = JSON.stringify(exec.requestExecuted?.header || []);
       const params = extractParams(exec.requestExecuted?.url);
       const scripts = extractTestScripts(exec.requestExecuted?.event);
 

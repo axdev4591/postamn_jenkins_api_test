@@ -130,13 +130,15 @@ async function createOrUpdateXrayTestCase(key, name, description, labels, testSe
       console.log(`✅ Created new test case: ${testCaseKey}`);
     }
 
-    // Link to Test Set (via Jira issue link API)
+    // Link to Test Set
     console.log(`🔗 Linking test to Test Set: ${testSetKey}`);
     await linkTestToTestSet(testCaseKey, testSetKey);
 
     // Link to Test Execution
     console.log(`🔗 Linking test to Test Execution: ${testExecutionKey}`);
-    await axios.post(buildApiUrl(process.env.XRAY_BASE_URL, `/api/v2/testexecution/${testExecutionKey}/test`), [testCaseKey], {
+    await axios.post(buildApiUrl(process.env.XRAY_BASE_URL, `/api/v2/testexecution/${testExecutionKey}/test`), {
+      add: [testCaseKey]
+    }, {
       headers: { Authorization: `Bearer ${XRAY_TOKEN}` }
     });
 
@@ -166,19 +168,12 @@ function formatToADF(text) {
   };
 }
 
-/**
- * Links a test case to a test set in Jira using the issue link API.
- * This replaces the invalid Xray endpoint (/api/v2/testset/{key}/test).
- *
- * @param {string} testKey - The key of the test case (e.g. "SCRUM-2").
- * @param {string} testSetKey - The key of the test set (e.g. "TS-01").
- */
 async function linkTestToTestSet(testKey, testSetKey) {
   const url = `${process.env.JIRA_BASE_URL}/rest/api/3/issueLink`;
 
   const payload = {
     type: {
-      name: "Tests" // This depends on your Jira/Xray config – "Tests" is usually the default link type
+      name: "Test Set" // Use appropriate link type name for Test Sets in your config
     },
     inwardIssue: {
       key: testSetKey
@@ -223,19 +218,16 @@ async function fetchJiraWorkflowTransitions(issueKeyExample) {
       }
     });
 
-    // Clear existing map
     for (const key in workflowMap) delete workflowMap[key];
 
     for (const transition of res.data.transitions) {
       const name = transition.name.toUpperCase();
-
       if (name.includes('OPEN')) workflowMap.OPEN = transition.id;
       else if (name.includes('REOPEN')) workflowMap.REOPENED = transition.id;
       else if (name.includes('CLOSE')) workflowMap.CLOSED = transition.id;
     }
 
     console.log('🔄 Fetched Jira workflow transitions:', workflowMap);
-
   } catch (error) {
     console.error('❌ Error fetching Jira workflow transitions:', error.response?.data || error.message);
     throw error;
@@ -268,15 +260,33 @@ async function updateJiraBugStatus(issueKey, status) {
 }
 
 // ============================
+// 📎 List all Jira Issue Link Types
+// ============================
+async function listIssueLinkTypes() {
+  try {
+    const url = buildApiUrl(process.env.JIRA_BASE_URL, '/rest/api/3/issueLinkType');
+    const response = await axios.get(url, {
+      auth: JIRA_AUTH,
+      headers: {
+        'Content-Type': 'application/json',
+      }
+    });
+    console.log('🔗 Jira Issue Link Types:', response.data.issueLinkTypes);
+    return response.data.issueLinkTypes;
+  } catch (error) {
+    console.error('❌ Failed to fetch Jira issue link types:', error.response?.data || error.message);
+    throw error;
+  }
+}
+
+// ============================
 // 🔥 Main Sync Function
 // ============================
 async function syncPostmanResults(resultsJsonPath) {
   try {
-    // Replace with a valid example bug issue key in your Jira project:
     const exampleBugIssueKey = `${process.env.JIRA_PROJECT_KEY}-4`;
-
-    // Fetch Jira workflow transitions once before processing bugs
     await fetchJiraWorkflowTransitions(exampleBugIssueKey);
+    await listIssueLinkTypes();
 
     const resultsData = JSON.parse(fs.readFileSync(resultsJsonPath, 'utf-8'));
     const collectionName = resultsData.run?.meta?.collectionName || 'Unnamed Collection';
@@ -291,10 +301,8 @@ async function syncPostmanResults(resultsJsonPath) {
     console.log(`🔎 Test Execution Key: ${testExecutionKey}`);
     console.log(`🔎 Test Set Key: ${testSetKey}`);
 
-    // Authenticate Xray for future calls
     await authenticateXray();
 
-    // Process each Postman test execution
     for (const exec of resultsData.run.executions) {
       const testName = exec.requestExecuted?.name || 'Unnamed Test';
       const testCaseMatch = testName.match(RE_TEST_CASE);
@@ -308,7 +316,6 @@ async function syncPostmanResults(resultsJsonPath) {
       const status = tests.every(test => test.status === 'passed') ? TEST_STATUS.PASSED : TEST_STATUS.FAILED;
       const description = formatToADF(exec.requestExecuted?.description || '');
 
-      // Create or update Xray test case and link it
       const jiraTestKey = await createOrUpdateXrayTestCase(
         testCaseKey,
         testName,
@@ -318,12 +325,9 @@ async function syncPostmanResults(resultsJsonPath) {
         testExecutionKey
       );
 
-      // Update Jira bug if test failed or passed
       if (status === TEST_STATUS.FAILED) {
-        // Open or Reopen bug (if needed)
         await updateJiraBugStatus(jiraTestKey, BUG_LIFECYCLE.REOPENED);
       } else if (status === TEST_STATUS.PASSED) {
-        // Close bug if still open
         await updateJiraBugStatus(jiraTestKey, BUG_LIFECYCLE.CLOSED);
       }
     }
@@ -346,9 +350,3 @@ if (require.main === module) {
   }
   syncPostmanResults(resultsJsonPath);
 }
-
-module.exports = {
-  syncPostmanResults,
-  updateJiraBugStatus,
-  fetchJiraWorkflowTransitions,
-};

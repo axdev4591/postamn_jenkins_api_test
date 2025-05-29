@@ -304,7 +304,8 @@ async function syncPostmanResults(resultsJsonPath) {
       }
       const testCaseKey = testCaseMatch[1];
 
-      const status = exec.assertions.every(a => a.error === undefined) ? TEST_STATUS.PASSED : TEST_STATUS.FAILED;
+      const tests = Array.isArray(exec.tests) ? exec.tests : [];
+      const status = tests.every(test => test.status === 'passed') ? TEST_STATUS.PASSED : TEST_STATUS.FAILED;
       const description = formatToADF(exec.requestExecuted?.description || '');
 
       // Create or update Xray test case and link it

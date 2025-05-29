@@ -97,10 +97,11 @@ async function createOrUpdateXrayTestCase(key, name, description, labels, testSe
     const searchRes = await axios.get(searchUrl, {
       auth: JIRA_AUTH,
       params: {
-        jql: `summary = "${sanitizedSummary}" AND project = "${process.env.JIRA_PROJECT_KEY}" AND issuetype = Test`,
+        jql: `summary ~ "\"${sanitizedSummary}\"" AND project = "${process.env.JIRA_PROJECT_KEY}" AND issuetype = Test`,
         maxResults: 1
       }
     });
+
 
     let testCaseKey;
     if (searchRes.data.issues.length > 0) {

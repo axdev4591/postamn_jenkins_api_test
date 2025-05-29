@@ -54,13 +54,11 @@ async function createOrUpdateXrayTestCase(key, name, description, labels, testSe
   console.log(`🔁 Syncing Xray test case ${key}...`);
 
   try {
-    let searchRes = await axios.get(buildUrl({
-      host: process.env.JIRA_BASE_URL.replace(/^https?:\/\//, ''),
-      path: 'rest/api/3/search'
-    }), {
+    const escapedName = name.replace(/\[/g, '\\[').replace(/\]/g, '\\]');
+    let searchRes = await axios.get(`${process.env.JIRA_BASE_URL}/rest/api/3/search`, {
       auth: JIRA_AUTH,
       params: {
-        jql: `summary ~ "${name}" AND project = "${process.env.JIRA_PROJECT_KEY}" AND issuetype = Test`,
+        jql: `summary ~ "${escapedName}" AND project = "${process.env.JIRA_PROJECT_KEY}" AND issuetype = Test`,
         maxResults: 1
       }
     });

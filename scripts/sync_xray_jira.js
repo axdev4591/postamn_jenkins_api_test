@@ -40,7 +40,7 @@ let XRAY_TOKEN = null;
 // 🔐 Authenticate to Xray API
 // ============================
 async function authenticateXray() {
-  const res = await axios.post(`${process.env.XRAY_BASE_URL}/api/v2/authenticate`, {
+  const res = await axios.post(buildUrl({ host: process.env.XRAY_BASE_URL.replace(/^https?:\/\//, ''), path: 'api/v2/authenticate' }), {
     client_id: process.env.XRAY_CLIENT_ID,
     client_secret: process.env.XRAY_CLIENT_SECRET
   });
@@ -54,8 +54,10 @@ async function createOrUpdateXrayTestCase(key, name, description, labels, testSe
   console.log(`🔁 Syncing Xray test case ${key}...`);
 
   try {
-    // 1. Check if test case exists by searching Jira issues with key or summary
-    let searchRes = await axios.get(`${process.env.JIRA_BASE_URL}/rest/api/3/search`, {
+    let searchRes = await axios.get(buildUrl({
+      host: process.env.JIRA_BASE_URL.replace(/^https?:\/\//, ''),
+      path: 'rest/api/3/search'
+    }), {
       auth: JIRA_AUTH,
       params: {
         jql: `summary ~ "${name}" AND project = "${process.env.JIRA_PROJECT_KEY}" AND issuetype = Test`,
@@ -68,12 +70,11 @@ async function createOrUpdateXrayTestCase(key, name, description, labels, testSe
     if (searchRes.data.issues.length > 0) {
       testCaseKey = searchRes.data.issues[0].key;
       console.log(`↩️ Test case already exists: ${testCaseKey}`);
-
-      // Optional: update issue fields if needed here
-
     } else {
-      // Create test case issue
-      const createRes = await axios.post(`${process.env.JIRA_BASE_URL}/rest/api/3/issue`, {
+      const createRes = await axios.post(buildUrl({
+        host: process.env.JIRA_BASE_URL.replace(/^https?:\/\//, ''),
+        path: 'rest/api/3/issue'
+      }), {
         fields: {
           project: { key: process.env.JIRA_PROJECT_KEY },
           summary: name,
@@ -87,12 +88,10 @@ async function createOrUpdateXrayTestCase(key, name, description, labels, testSe
       console.log(`✅ Created test case: ${testCaseKey}`);
     }
 
-    // 2. Link test case to Test Set
     await axios.post(`${process.env.XRAY_BASE_URL}/api/v2/testset/${testSetKey}/test`, [testCaseKey], {
       headers: { Authorization: `Bearer ${XRAY_TOKEN}` }
     });
 
-    // 3. Link test case to Test Execution
     await axios.post(`${process.env.XRAY_BASE_URL}/api/v2/testexecution/${testExecutionKey}/test`, [testCaseKey], {
       headers: { Authorization: `Bearer ${XRAY_TOKEN}` }
     });
@@ -106,15 +105,20 @@ async function createOrUpdateXrayTestCase(key, name, description, labels, testSe
   }
 }
 
-
 // =====================================================
 // 🐞 Create or Update Jira Bug Linked to a Test Case
 // =====================================================
 async function createOrUpdateJiraBug(testCaseKey, summary, description, labels) {
-  const search = await axios.get(`${process.env.JIRA_BASE_URL}/rest/api/3/search`, {
+  const escapedSummary = summary.replace(/\[/g, '\\[').replace(/\]/g, '\\]');
+  const jql = `summary ~ "${escapedSummary}" AND project = "${process.env.JIRA_PROJECT_KEY}"`;
+
+  const search = await axios.get(buildUrl({
+    host: process.env.JIRA_BASE_URL.replace(/^https?:\/\//, ''),
+    path: 'rest/api/3/search'
+  }), {
     auth: JIRA_AUTH,
     params: {
-      jql: `summary ~ '"${summary}"' AND project = "${process.env.JIRA_PROJECT_KEY}"`,
+      jql,
       maxResults: 1
     }
   });
@@ -124,7 +128,10 @@ async function createOrUpdateJiraBug(testCaseKey, summary, description, labels) 
     return search.data.issues[0].key;
   }
 
-  const res = await axios.post(`${process.env.JIRA_BASE_URL}/rest/api/3/issue`, {
+  const res = await axios.post(buildUrl({
+    host: process.env.JIRA_BASE_URL.replace(/^https?:\/\//, ''),
+    path: 'rest/api/3/issue'
+  }), {
     fields: {
       project: { key: process.env.JIRA_PROJECT_KEY },
       summary,
@@ -139,14 +146,16 @@ async function createOrUpdateJiraBug(testCaseKey, summary, description, labels) 
   return bugKey;
 }
 
-
 // ===================================
 // 📎 Attach Log File to Jira Issue
 // ===================================
 async function attachFileToJiraIssue(issueKey, filePath) {
   const data = fs.createReadStream(filePath);
 
-  await axios.post(`${process.env.JIRA_BASE_URL}/rest/api/3/issue/${issueKey}/attachments`, data, {
+  await axios.post(buildUrl({
+    host: process.env.JIRA_BASE_URL.replace(/^https?:\/\//, ''),
+    path: `rest/api/3/issue/${issueKey}/attachments`
+  }), data, {
     auth: JIRA_AUTH,
     headers: {
       'X-Atlassian-Token': 'no-check',
@@ -162,9 +171,11 @@ async function attachFileToJiraIssue(issueKey, filePath) {
 // ======================================
 async function updateJiraBugStatus(bugKey, desiredStatus) {
   const transitions = { OPEN: '11', REOPENED: '21', CLOSED: '31' };
-  const bug = await axios.get(`${process.env.JIRA_BASE_URL}/rest/api/3/issue/${bugKey}`, {
-    auth: JIRA_AUTH
-  });
+
+  const bug = await axios.get(buildUrl({
+    host: process.env.JIRA_BASE_URL.replace(/^https?:\/\//, ''),
+    path: `rest/api/3/issue/${bugKey}`
+  }), { auth: JIRA_AUTH });
 
   const currentStatus = bug.data.fields.status.name.toUpperCase();
   if (currentStatus === desiredStatus) {
@@ -178,7 +189,10 @@ async function updateJiraBugStatus(bugKey, desiredStatus) {
     return;
   }
 
-  await axios.post(`${process.env.JIRA_BASE_URL}/rest/api/3/issue/${bugKey}/transitions`, {
+  await axios.post(buildUrl({
+    host: process.env.JIRA_BASE_URL.replace(/^https?:\/\//, ''),
+    path: `rest/api/3/issue/${bugKey}/transitions`
+  }), {
     transition: { id: transitionId }
   }, { auth: JIRA_AUTH });
 
@@ -197,7 +211,7 @@ async function createLogFileForTest(testCaseKey, result) {
   return filePath;
 }
 
-// Build full URL from Postman URL object
+// 🔧 Build full URL from Postman or string URL
 function buildUrl(urlObj) {
   if (typeof urlObj === 'string') return urlObj;
   const protocol = urlObj.protocol || 'https';
@@ -208,11 +222,8 @@ function buildUrl(urlObj) {
 
 function extractParams(urlObj) {
   if (!urlObj?.query || !Array.isArray(urlObj.query)) return 'None';
-  return urlObj.query
-    .map(param => `${param.key}=${param.value}`)
-    .join('\n');
+  return urlObj.query.map(param => `${param.key}=${param.value}`).join('\n');
 }
-
 
 function extractTestScripts(event) {
   if (!event || !Array.isArray(event)) return 'None';
@@ -224,8 +235,6 @@ function extractTestScripts(event) {
 
   return testScripts || 'None';
 }
-
-
 
 // ============================
 // 🚀 Main Sync Function
@@ -265,7 +274,6 @@ async function main() {
       const body = JSON.stringify(exec.requestExecuted?.body || {});
       const headers = JSON.stringify(exec.requestExecuted?.headers || []);
       const params = extractParams(exec.requestExecuted?.url);
-      //const scripts = JSON.stringify(exec?.tests || []); 
       const scripts = extractTestScripts(exec.requestExecuted?.event);
 
       const description = `

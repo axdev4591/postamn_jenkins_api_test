@@ -53,32 +53,45 @@ async function authenticateXray() {
 async function createOrUpdateXrayTestCase(key, name, description, labels, testSetKey, testExecutionKey) {
   console.log(`🔁 Syncing Xray test case ${key}...`);
 
-  const response = await axios.post(`${process.env.XRAY_BASE_URL}/api/v2/import/test`,
-    {
-      testType: 'Jenkins_postman',
-      testKey: key,
-      projectKey: process.env.JIRA_PROJECT_KEY,
-      summary: name,
-      description,
-      labels
-    }, {
-    headers: {
-      Authorization: `Bearer ${XRAY_TOKEN}`,
-      ContentType: "application/json"
+  try {
+
+    const response = await axios.post(`${process.env.XRAY_BASE_URL}/api/v2/import/test`,
+      {
+        testType: 'Jenkins_postman',
+        testKey: key,
+        projectKey: process.env.JIRA_PROJECT_KEY,
+        summary: name,
+        description,
+        labels
+      }, {
+      headers: {
+        Authorization: `Bearer ${XRAY_TOKEN}`,
+        ContentType: "application/json"
+      }
+    });
+
+    const testCaseId = response.data.key;
+
+    await axios.post(`${process.env.XRAY_BASE_URL}/api/v2/testset/${testSetKey}/test`, [testCaseId], {
+      headers: { Authorization: `Bearer ${XRAY_TOKEN}` }
+    });
+
+    await axios.post(`${process.env.XRAY_BASE_URL}/api/v2/testexecution/${testExecutionKey}/test`, [testCaseId], {
+      headers: { Authorization: `Bearer ${XRAY_TOKEN}` }
+    });
+
+    console.log(`✅ Linked to [${testSetKey}] and [${testExecutionKey}]`);
+  } catch (error) {
+    console.error(`❌ Error calling ${url}`);
+    if (error.response) {
+      console.error('Status:', error.response.status);
+      console.error('Data:', JSON.stringify(error.response.data, null, 2));
+    } else {
+      console.error(error.message);
     }
-  });
+    throw error; // rethrow to be caught by upper-level try/catch
+  }
 
-  const testCaseId = response.data.key;
-
-  await axios.post(`${process.env.XRAY_BASE_URL}/api/v2/testset/${testSetKey}/test`, [testCaseId], {
-    headers: { Authorization: `Bearer ${XRAY_TOKEN}` }
-  });
-
-  await axios.post(`${process.env.XRAY_BASE_URL}/api/v2/testexecution/${testExecutionKey}/test`, [testCaseId], {
-    headers: { Authorization: `Bearer ${XRAY_TOKEN}` }
-  });
-
-  console.log(`✅ Linked to [${testSetKey}] and [${testExecutionKey}]`);
 }
 
 // =====================================================

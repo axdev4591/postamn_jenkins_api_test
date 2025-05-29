@@ -85,8 +85,8 @@ pipeline {
           def execKey = 'UNKNOWN'
           try {
             def results = readJSON file: 'results.json'
-            if (results?.collection?.info?.name) {
-              def collectionName = results.collection.info.name
+            if (results.run?.meta?.collectionName) {
+              def collectionName = results.run?.meta?.collectionName
               def matcher = collectionName =~ /\[(TE-\d+)\]/
               if (matcher) {
                 execKey = matcher[0][1]
@@ -94,7 +94,7 @@ pipeline {
                 echo "⚠️ Warning: Postman collection name missing [TE-xx] key pattern."
               }
             } else {
-              echo "⚠️ Warning: results.json missing collection info name."
+              echo "⚠️ Warning: results.json missing collection name."
             }
           } catch (Exception e) {
             echo "⚠️ Warning: Failed to read or parse results.json: ${e}"

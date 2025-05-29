@@ -247,7 +247,8 @@ async function main() {
     await authenticateXray();
 
     for (const exec of executions) {
-      const name = exec.item?.name || 'Unnamed Test';
+      const name = exec?.requestExecuted?.name || exec?.item?.name || 'Unnamed Test';
+      console.log(`📌 Found test name: ${name}`);
       const match = name.match(RE_TEST_CASE);
       if (!match) {
         console.warn(`⚠️ Skipping invalid test name: ${name}`);

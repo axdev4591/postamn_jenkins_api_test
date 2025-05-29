@@ -114,7 +114,7 @@ async function createOrUpdateJiraBug(testCaseKey, summary, description, labels) 
   const search = await axios.get(`${process.env.JIRA_BASE_URL}/rest/api/3/search`, {
     auth: JIRA_AUTH,
     params: {
-      jql: `summary ~ "${summary}" AND project = "${process.env.JIRA_PROJECT_KEY}"`,
+      jql: `summary ~ '"${summary}"' AND project = "${process.env.JIRA_PROJECT_KEY}"`,
       maxResults: 1
     }
   });
@@ -138,6 +138,7 @@ async function createOrUpdateJiraBug(testCaseKey, summary, description, labels) 
   console.log(`✅ Created new bug: ${bugKey}`);
   return bugKey;
 }
+
 
 // ===================================
 // 📎 Attach Log File to Jira Issue

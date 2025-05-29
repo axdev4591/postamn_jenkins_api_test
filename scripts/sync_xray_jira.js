@@ -53,38 +53,20 @@ async function authenticateXray() {
 async function createOrUpdateXrayTestCase(key, name, description, labels, testSetKey, testExecutionKey) {
   console.log(`🔁 Syncing Xray test case ${key}...`);
 
-  //const response = await axios.post(`${process.env.XRAY_BASE_URL}/api/v2/import/test`,
-
-  const response = await axios.post(`${process.env.JIRA_BASE_URL}/rest/api/2/issue`, {
-    "fields": {
-      "project":
-      {
-        "key": "SCRUM"
-      },
-      "summary": "Sum of two number",
-      "description": "example of generic test",
-      "issuetype": {
-        "name": "Test"
-      },
-
-
-      "customfield_10200": { "value": "Generic" },
-      "customfield_10203": "sum_script.sh"
-
+  const response = await axios.post(`${process.env.XRAY_BASE_URL}/api/v2/import/test`,
+    {
+      testType: 'Jenkins_postman',
+      testKey: key,
+      projectKey: process.env.JIRA_PROJECT_KEY,
+      summary: name,
+      description,
+      labels
+    }, {
+    headers: {
+      Authorization: `Bearer ${XRAY_TOKEN}`,
+      ContentType: "application/json"
     }
-  }/* {
-    testType: 'Jenkins_postman',
-    testKey: key,
-    projectKey: process.env.JIRA_PROJECT_KEY,
-    summary: name,
-    description,
-    labels
-  }*/, {
-      headers: {
-        Authorization: `Bearer ${XRAY_TOKEN}`,
-        ContentType: "application/json"
-      }
-    });
+  });
 
   const testCaseId = response.data.key;
 
@@ -197,12 +179,25 @@ function buildUrl(urlObj) {
   return `${protocol}://${host}/${path}`;
 }
 
-function extractParams(url) {
-
+function extractParams(urlObj) {
+  if (!urlObj?.query || !Array.isArray(urlObj.query)) return 'None';
+  return urlObj.query
+    .map(param => `${param.key}=${param.value}`)
+    .join('\n');
 }
+
+
 function extractTestScripts(event) {
+  if (!event || !Array.isArray(event)) return 'None';
 
+  const testScripts = event
+    .filter(e => e.listen === 'test')
+    .flatMap(e => (e.script?.exec || []))
+    .join('\n');
+
+  return testScripts || 'None';
 }
+
 
 
 // ============================
@@ -242,8 +237,9 @@ async function main() {
       const method = exec.requestExecuted?.method || 'GET';
       const body = JSON.stringify(exec.requestExecuted?.body || {});
       const headers = JSON.stringify(exec.requestExecuted?.headers || []);
-      const params = "";//JSON.stringify(exec?.url.query || []);//extractParams(exec.requestExecuted?.url);
-      const scripts = JSON.stringify(exec?.tests || []); //extractTestScripts(exec.requestExecuted?.event);
+      const params = extractParams(exec.requestExecuted?.url);
+      //const scripts = JSON.stringify(exec?.tests || []); 
+      const scripts = extractTestScripts(exec.requestExecuted?.event);
 
       const description = `
 **API Info:**

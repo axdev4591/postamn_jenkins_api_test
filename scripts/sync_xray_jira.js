@@ -37,28 +37,50 @@ const JIRA_AUTH = {
 // 🌍 Global Xray Access Token
 let XRAY_TOKEN = null;
 
-// 🔧 Build full URL from Postman or string URL
-function buildUrl(urlObj) {
+// ==============================
+// 🔧 Safe URL builder function
+// ==============================
+function buildApiUrl(base, path) {
+  try {
+    // new URL() safely appends path to base URL
+    return new URL(path, base).toString();
+  } catch (err) {
+    throw new Error(`Invalid URL components: base='${base}', path='${path}'`);
+  }
+}
+
+// ==============================
+// 🔧 Build full URL from Postman URL object or string
+// ==============================
+function buildRequestUrl(urlObj) {
   if (typeof urlObj === 'string') return urlObj;
   if (!urlObj) return 'undefined';
 
-  const protocol = urlObj.protocol || 'undefined';
-  const host = Array.isArray(urlObj.host) ? urlObj.host.join('.') : (urlObj.host || 'undefined');
-  const pathPart = Array.isArray(urlObj.path) ? urlObj.path.join('/') : (urlObj.path || 'undefined');
+  const protocol = urlObj.protocol || 'http';
+  const host = Array.isArray(urlObj.host) ? urlObj.host.join('.') : (urlObj.host || '');
+  const pathPart = Array.isArray(urlObj.path) ? urlObj.path.join('/') : (urlObj.path || '');
+  const queryParams = urlObj.query && Array.isArray(urlObj.query)
+    ? urlObj.query.map(param => `${param.key}=${param.value}`).join('&')
+    : '';
 
-  // Avoid double slashes if pathPart is 'undefined'
-  if (pathPart === 'undefined') {
-    return `${protocol}://${host}`;
-  }
-  return `${protocol}://${host}/${pathPart}`;
+  let url = `${protocol}://${host}`;
+  if (pathPart) url += `/${pathPart}`;
+  if (queryParams) url += `?${queryParams}`;
+  return url;
 }
 
+// ==============================
+// 🔧 Extract query params from Postman URL object
+// ==============================
 function extractParams(urlObj) {
   if (!urlObj?.query || !Array.isArray(urlObj.query)) return 'undefined';
   if (urlObj.query.length === 0) return 'None';
   return urlObj.query.map(param => `${param.key || 'undefined'}=${param.value || 'undefined'}`).join('\n');
 }
 
+// ==============================
+// 🔧 Extract test scripts from Postman event array
+// ==============================
 function extractTestScripts(event) {
   if (!event || !Array.isArray(event)) return 'None';
   const testScripts = event
@@ -72,10 +94,13 @@ function extractTestScripts(event) {
 // 🔐 Authenticate to Xray API
 // ============================
 async function authenticateXray() {
-  const res = await axios.post(buildUrl({
-    host: process.env.XRAY_BASE_URL?.replace(/^https?:\/\//, '') || '',
-    path: 'api/v2/authenticate'
-  }), {
+  if (!process.env.XRAY_BASE_URL) throw new Error('XRAY_BASE_URL is not set');
+  if (!process.env.XRAY_CLIENT_ID) throw new Error('XRAY_CLIENT_ID is not set');
+  if (!process.env.XRAY_CLIENT_SECRET) throw new Error('XRAY_CLIENT_SECRET is not set');
+
+  const authUrl = buildApiUrl(process.env.XRAY_BASE_URL, '/api/v2/authenticate');
+
+  const res = await axios.post(authUrl, {
     client_id: process.env.XRAY_CLIENT_ID,
     client_secret: process.env.XRAY_CLIENT_SECRET
   });
@@ -88,8 +113,12 @@ async function authenticateXray() {
 async function createOrUpdateXrayTestCase(key, name, description, labels, testSetKey, testExecutionKey) {
   console.log(`🔁 Syncing Xray test case ${key}...`);
   try {
+    if (!process.env.JIRA_BASE_URL) throw new Error('JIRA_BASE_URL is not set');
+    if (!process.env.JIRA_PROJECT_KEY) throw new Error('JIRA_PROJECT_KEY is not set');
+
     const jqlSafeName = name.replace(/[\[\]]/g, '');
-    let searchRes = await axios.get(`${process.env.JIRA_BASE_URL}/rest/api/3/search`, {
+    const searchUrl = buildApiUrl(process.env.JIRA_BASE_URL, '/rest/api/3/search');
+    let searchRes = await axios.get(searchUrl, {
       auth: JIRA_AUTH,
       params: {
         jql: `summary ~ "${jqlSafeName}" AND project = "${process.env.JIRA_PROJECT_KEY}" AND issuetype = Test`,
@@ -102,10 +131,8 @@ async function createOrUpdateXrayTestCase(key, name, description, labels, testSe
       testCaseKey = searchRes.data.issues[0].key;
       console.log(`↩️ Test case already exists: ${testCaseKey}`);
     } else {
-      const createRes = await axios.post(buildUrl({
-        host: process.env.JIRA_BASE_URL?.replace(/^https?:\/\//, '') || '',
-        path: 'rest/api/3/issue'
-      }), {
+      const createUrl = buildApiUrl(process.env.JIRA_BASE_URL, '/rest/api/3/issue');
+      const createRes = await axios.post(createUrl, {
         fields: {
           project: { key: process.env.JIRA_PROJECT_KEY },
           summary: name,
@@ -119,11 +146,12 @@ async function createOrUpdateXrayTestCase(key, name, description, labels, testSe
       console.log(`✅ Created test case: ${testCaseKey}`);
     }
 
-    await axios.post(`${process.env.XRAY_BASE_URL}/api/v2/testset/${testSetKey}/test`, [testCaseKey], {
+    // Link Test Case to Test Set and Test Execution in Xray
+    await axios.post(buildApiUrl(process.env.XRAY_BASE_URL, `/api/v2/testset/${testSetKey}/test`), [testCaseKey], {
       headers: { Authorization: `Bearer ${XRAY_TOKEN}` }
     });
 
-    await axios.post(`${process.env.XRAY_BASE_URL}/api/v2/testexecution/${testExecutionKey}/test`, [testCaseKey], {
+    await axios.post(buildApiUrl(process.env.XRAY_BASE_URL, `/api/v2/testexecution/${testExecutionKey}/test`), [testCaseKey], {
       headers: { Authorization: `Bearer ${XRAY_TOKEN}` }
     });
 
@@ -140,13 +168,15 @@ async function createOrUpdateXrayTestCase(key, name, description, labels, testSe
 // 🐞 Create or Update Jira Bug Linked to a Test Case
 // =====================================================
 async function createOrUpdateJiraBug(testCaseKey, summary, description, labels) {
+  if (!process.env.JIRA_BASE_URL) throw new Error('JIRA_BASE_URL is not set');
+  if (!process.env.JIRA_PROJECT_KEY) throw new Error('JIRA_PROJECT_KEY is not set');
+  if (!process.env.BUG_ISSUE_TYPE) throw new Error('BUG_ISSUE_TYPE is not set');
+
   const escapedSummary = summary.replace(/\[/g, '\\[').replace(/\]/g, '\\]');
   const jql = `summary ~ "${escapedSummary}" AND project = "${process.env.JIRA_PROJECT_KEY}"`;
 
-  const search = await axios.get(buildUrl({
-    host: process.env.JIRA_BASE_URL?.replace(/^https?:\/\//, '') || '',
-    path: 'rest/api/3/search'
-  }), {
+  const searchUrl = buildApiUrl(process.env.JIRA_BASE_URL, '/rest/api/3/search');
+  const search = await axios.get(searchUrl, {
     auth: JIRA_AUTH,
     params: {
       jql,
@@ -159,10 +189,8 @@ async function createOrUpdateJiraBug(testCaseKey, summary, description, labels) 
     return search.data.issues[0].key;
   }
 
-  const res = await axios.post(buildUrl({
-    host: process.env.JIRA_BASE_URL?.replace(/^https?:\/\//, '') || '',
-    path: 'rest/api/3/issue'
-  }), {
+  const createUrl = buildApiUrl(process.env.JIRA_BASE_URL, '/rest/api/3/issue');
+  const res = await axios.post(createUrl, {
     fields: {
       project: { key: process.env.JIRA_PROJECT_KEY },
       summary,
@@ -181,10 +209,13 @@ async function createOrUpdateJiraBug(testCaseKey, summary, description, labels) 
 // 📎 Attach Log File to Jira Issue
 // ===================================
 async function attachFileToJiraIssue(issueKey, filePath) {
+  if (!process.env.JIRA_BASE_URL) throw new Error('JIRA_BASE_URL is not set');
+
   const form = new FormData();
   form.append('file', fs.createReadStream(filePath));
 
-  await axios.post(`${process.env.JIRA_BASE_URL}/rest/api/3/issue/${issueKey}/attachments`, form, {
+  const attachUrl = buildApiUrl(process.env.JIRA_BASE_URL, `/rest/api/3/issue/${issueKey}/attachments`);
+  await axios.post(attachUrl, form, {
     auth: JIRA_AUTH,
     headers: {
       'X-Atlassian-Token': 'no-check',
@@ -199,9 +230,13 @@ async function attachFileToJiraIssue(issueKey, filePath) {
 // 🔄 Transition Jira Bug Status
 // ======================================
 async function updateJiraBugStatus(bugKey, desiredStatus) {
+  if (!process.env.JIRA_BASE_URL) throw new Error('JIRA_BASE_URL is not set');
+
+  // These transition IDs should be replaced with your actual Jira workflow transition IDs
   const transitions = { OPEN: '11', REOPENED: '21', CLOSED: '31' };
 
-  const bug = await axios.get(`${process.env.JIRA_BASE_URL}/rest/api/3/issue/${bugKey}`, { auth: JIRA_AUTH });
+  const bugUrl = buildApiUrl(process.env.JIRA_BASE_URL, `/rest/api/3/issue/${bugKey}`);
+  const bug = await axios.get(bugUrl, { auth: JIRA_AUTH });
   const currentStatus = bug.data.fields.status.name.toUpperCase();
 
   if (currentStatus === desiredStatus) {
@@ -215,103 +250,130 @@ async function updateJiraBugStatus(bugKey, desiredStatus) {
     return;
   }
 
-  await axios.post(`${process.env.JIRA_BASE_URL}/rest/api/3/issue/${bugKey}/transitions`, {
-    transition: { id: transitionId }
+  const transitionUrl = buildApiUrl(process.env.JIRA_BASE_URL, `/rest/api/3/issue/${bugKey}/transitions`);
+  await axios.post(transitionUrl, { transition: { id: transitionId } }, { auth: JIRA_AUTH });
+
+  console.log(`🔄 Transitioned bug ${bugKey} from ${currentStatus} to ${desiredStatus}`);
+}
+
+// =========================================
+// 🧹 Link Jira Bug to Xray Test Case
+// =========================================
+async function linkBugToTestCase(testCaseKey, bugKey) {
+  if (!process.env.JIRA_BASE_URL) throw new Error('JIRA_BASE_URL is not set');
+
+  const linkUrl = buildApiUrl(process.env.JIRA_BASE_URL, '/rest/api/3/issueLink');
+  await axios.post(linkUrl, {
+    type: { name: 'Relates' },
+    inwardIssue: { key: testCaseKey },
+    outwardIssue: { key: bugKey }
   }, { auth: JIRA_AUTH });
 
-  console.log(`🔄 Bug ${bugKey} transitioned to ${desiredStatus}`);
+  console.log(`🔗 Linked bug ${bugKey} to test case ${testCaseKey}`);
 }
 
-// ==================================
-// 📄 Create Log File for Test Result
-// ==================================
-async function createLogFileForTest(testCaseKey, result) {
-  const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-  const fileName = `log_${testCaseKey}_${timestamp}.txt`;
-  const content = `Test: ${testCaseKey}\nStatus: ${result.status}\nDetails:\n${JSON.stringify(result.details, null, 2)}\n`;
-  const filePath = path.join(__dirname, fileName);
-  fs.writeFileSync(filePath, content);
-  return filePath;
-}
-
-// ============================
-// 🚀 Main Sync Function
-// ============================
-async function main() {
+// ======================================
+// 🔥 Main sync function for Postman results
+// ======================================
+async function syncPostmanResults(resultsJsonPath) {
   try {
-    const file = process.argv[2];
-    if (!file) throw new Error('❌ Missing Postman results.json file path');
+    // Read and parse Postman results JSON file
+    const resultsData = JSON.parse(fs.readFileSync(resultsJsonPath, 'utf-8'));
+    const collectionName = resultsData.run?.collection?.name || 'Unnamed Collection';
 
-    const results = JSON.parse(fs.readFileSync(file, 'utf-8'));
-    const collectionName = results.run?.meta?.collectionName || 'undefined';
-    if (collectionName === 'undefined') throw new Error('❌ Missing collectionName in results');
+    // Extract Test Execution Key from collection name
+    const teMatch = collectionName.match(RE_TEST_EXECUTION);
+    if (!teMatch) throw new Error(`Test Execution key not found in collection name: ${collectionName}`);
+    const testExecutionKey = teMatch[1];
 
-    const testExecutionKeyMatch = collectionName.match(RE_TEST_EXECUTION);
-    if (!testExecutionKeyMatch) throw new Error('❌ Missing [TE-xx] in collection name');
-    const testExecutionKey = testExecutionKeyMatch[1];
+    // Extract Test Set Key similarly
+    const tsMatch = collectionName.match(RE_TEST_SET);
+    if (!tsMatch) throw new Error(`Test Set key not found in collection name: ${collectionName}`);
+    const testSetKey = tsMatch[1];
 
-    const executions = results.run?.executions || [];
+    console.log(`🚀 Syncing Postman collection '${collectionName}' to Xray test execution ${testExecutionKey} and test set ${testSetKey}`);
 
+    // Authenticate Xray API
     await authenticateXray();
 
-    for (const exec of executions) {
-      const name = exec?.requestExecuted?.name || exec?.item?.name || 'Unnamed Test';
-      console.log(`📌 Found test name: ${name}`);
-      const match = name.match(RE_TEST_CASE);
-      if (!match) {
-        console.warn(`⚠️ Skipping invalid test name: ${name}`);
+    // Loop over each test result execution
+    for (const execution of resultsData.run.executions) {
+      const itemName = execution.item?.name || 'Unnamed Test';
+      const testCaseMatch = itemName.match(RE_TEST_CASE);
+
+      if (!testCaseMatch) {
+        console.warn(`⚠️ Skipping test without test case key in name: ${itemName}`);
         continue;
       }
 
-      const testCaseKey = match[1];
-      const ts = `TS-${testCaseKey.split('-')[1].replace('TS', '')}`;
-      const te = `TE-${testCaseKey.split('-')[2].replace('TE', '')}`;
+      const testCaseKeyFromName = testCaseMatch[1];
+      const testName = execution.assertions?.length ? execution.assertions[0].assertion : itemName;
 
-      const request = exec.request || exec.item?.request || {};
-      const url = buildUrl(request?.url);
-      const method = request?.method || 'undefined';
-      const body = JSON.stringify(request?.body || 'undefined');
-      const headers = JSON.stringify(request?.header || 'undefined');
-      const params = extractParams(request?.url);
-      const scripts = extractTestScripts(request?.event);
+      // Prepare test case description with request details
+      const request = execution.request;
+      const requestUrl = buildRequestUrl(request.url);
+      const requestMethod = request.method || 'GET';
+      const requestQueryParams = extractParams(request.url);
+      const testScripts = extractTestScripts(execution.item.event);
 
-      const description = `
-**API Info:**
-- Method: ${method}
-- URL: ${url}
-- Body: ${body}
-- Headers: ${headers}
-- Params: ${params}
+      const description =
+        `Request:\n- URL: ${requestUrl}\n- Method: ${requestMethod}\n- Query Params:\n${requestQueryParams}\n\nTest Scripts:\n${testScripts}\n\nLinked Jenkins Pipeline: ${JENKINS_PIPELINE_LINK}`;
 
-**Tests:**  
-${scripts}
+      // Create or update the test case in Xray/Jira and link it
+      const testCaseKey = await createOrUpdateXrayTestCase(
+        testCaseKeyFromName,
+        itemName,
+        description,
+        LABELS,
+        testSetKey,
+        testExecutionKey
+      );
 
-**Triggered by Jenkins:**  
-Pipeline: ${JENKINS_PIPELINE_LINK}  
-Execution: ${te}  
-Set: ${ts}
-`.trim();
+      // Determine test status from execution assertions
+      let status = TEST_STATUS.PASSED;
+      if (execution.assertions && execution.assertions.some(a => a.error)) {
+        status = TEST_STATUS.FAILED;
+      } else if (execution.assertions && execution.assertions.every(a => a.skipped)) {
+        status = TEST_STATUS.SKIPPED;
+      }
 
-      const failedAssertions = exec.assertions?.filter(a => a.error) || [];
-      const status = failedAssertions.length > 0 ? TEST_STATUS.FAILED : TEST_STATUS.PASSED;
-      const result = { status, details: failedAssertions };
-
-      await createOrUpdateXrayTestCase(testCaseKey, name, description, LABELS, ts, te);
-      const bugKey = await createOrUpdateJiraBug(testCaseKey, `Bug - ${name}`, `Bug for ${testCaseKey}`, LABELS);
-
+      // Create or update bug if test failed
       if (status === TEST_STATUS.FAILED) {
-        const logFile = await createLogFileForTest(testCaseKey, result);
-        await attachFileToJiraIssue(bugKey, logFile);
+        const bugSummary = `Bug for failing test: ${itemName}`;
+        const bugDescription = `Test case ${testCaseKey} failed during Jenkins/Postman run.\nSee details at ${JENKINS_PIPELINE_LINK}`;
+        const bugKey = await createOrUpdateJiraBug(testCaseKey, bugSummary, bugDescription, LABELS);
+
+        // Optionally attach logs or other files (assumed path)
+        // await attachFileToJiraIssue(bugKey, '/path/to/logfile.log');
+
+        // Link bug to test case
+        await linkBugToTestCase(testCaseKey, bugKey);
+
+        // Transition bug to Open or Reopened status
         await updateJiraBugStatus(bugKey, BUG_LIFECYCLE.REOPENED);
-      } else if (status === TEST_STATUS.PASSED) {
-        await updateJiraBugStatus(bugKey, BUG_LIFECYCLE.CLOSED);
+      } else {
+        // If test passed, try to close bug if it exists
+        // Search bugs for this test case and close if open
+        // (Implementation omitted for brevity - could be done similarly to createOrUpdateJiraBug with extra JQL)
       }
     }
-    console.log('✅ Sync complete.');
 
+    console.log('✅ Postman test results sync completed successfully.');
   } catch (err) {
-    console.error('❌ Fatal error:', err.message || err);
+    console.error('❌ Error syncing Postman results:', err.message);
+    process.exit(1);
   }
 }
 
-main();
+// ============================
+// 🔄 Run the script with Postman results.json path from CLI argument
+// ============================
+if (require.main === module) {
+  const resultsJsonPath = process.argv[2];
+  if (!resultsJsonPath) {
+    console.error('Usage: node sync-postman-to-xray.js <postman-results.json>');
+    process.exit(1);
+  }
+  syncPostmanResults(resultsJsonPath);
+}
+

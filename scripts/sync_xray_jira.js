@@ -66,7 +66,7 @@ async function createOrUpdateXrayTestCase(key, name, description, labels, testSe
       }, {
       headers: {
         Authorization: `Bearer ${XRAY_TOKEN}`,
-        ContentType: "application/json"
+        'Content-Type': "application/json"   // <--- FIXED HERE
       }
     });
 

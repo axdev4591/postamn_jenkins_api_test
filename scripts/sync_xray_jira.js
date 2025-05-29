@@ -186,10 +186,25 @@ async function syncPostmanResults(resultsJsonPath) {
       const method = request.method || 'GET';
       const queryParams = extractParams(request.url);
       const testScripts = extractTestScripts(event);
-
-      const description =
+      const description1 =
         `Request:\n- URL: ${requestUrl}\n- Method: ${method}\n- Query Params:\n${queryParams}\n\n` +
         `Test Scripts:\n${testScripts}\n\nLinked Jenkins Pipeline: ${JENKINS_PIPELINE_LINK}`;
+      const description = `{
+          "type": "doc",
+          "version": 1,
+          "content": [
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": ${description1}
+                }
+              ]
+            }
+          ]
+        }`;
+
 
       const testCaseKey = await createOrUpdateXrayTestCase(
         testCaseKeyFromName, testName, description, LABELS, testSetKey, testExecutionKey

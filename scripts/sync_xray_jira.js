@@ -298,7 +298,7 @@ async function syncPostmanResults(resultsJsonPath) {
 
     // Loop over each test result execution
     for (const execution of resultsData.run.executions) {
-      const itemName = execution.item?.name || 'Unnamed Test';
+      const itemName = execution.requestExecuted?.name || 'Unnamed Test';
       const testCaseMatch = itemName.match(RE_TEST_CASE);
 
       if (!testCaseMatch) {
@@ -310,11 +310,11 @@ async function syncPostmanResults(resultsJsonPath) {
       const testName = execution.assertions?.length ? execution.assertions[0].assertion : itemName;
 
       // Prepare test case description with request details
-      const request = execution.request;
-      const requestUrl = buildRequestUrl(request.url);
-      const requestMethod = request.method || 'GET';
-      const requestQueryParams = extractParams(request.url);
-      const testScripts = extractTestScripts(execution.item.event);
+      const request = execution.requestExecuted;
+      const requestUrl = buildRequestUrl(request?.url);
+      const requestMethod = request?.method || 'GET';
+      const requestQueryParams = extractParams(request?.url);
+      const testScripts = extractTestScripts(execution?.tests);
 
       const description =
         `Request:\n- URL: ${requestUrl}\n- Method: ${requestMethod}\n- Query Params:\n${requestQueryParams}\n\nTest Scripts:\n${testScripts}\n\nLinked Jenkins Pipeline: ${JENKINS_PIPELINE_LINK}`;
@@ -331,9 +331,9 @@ async function syncPostmanResults(resultsJsonPath) {
 
       // Determine test status from execution assertions
       let status = TEST_STATUS.PASSED;
-      if (execution.assertions && execution.assertions.some(a => a.error)) {
+      if (execution?.tests && execution?.tests[0].status == "failed") {
         status = TEST_STATUS.FAILED;
-      } else if (execution.assertions && execution.assertions.every(a => a.skipped)) {
+      } else /*if (execution.assertions && execution.assertions.every(a => a.skipped)) */ {
         status = TEST_STATUS.SKIPPED;
       }
 

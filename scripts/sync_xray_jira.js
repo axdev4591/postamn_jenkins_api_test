@@ -54,45 +54,58 @@ async function createOrUpdateXrayTestCase(key, name, description, labels, testSe
   console.log(`🔁 Syncing Xray test case ${key}...`);
 
   try {
-
-    const response = await axios.post(`${process.env.XRAY_BASE_URL}/api/v2/import/test`,
-      {
-        testType: 'Jenkins_postman',
-        testKey: key,
-        projectKey: process.env.JIRA_PROJECT_KEY,
-        summary: name,
-        description,
-        labels
-      }, {
-      headers: {
-        Authorization: `Bearer ${XRAY_TOKEN}`,
-        'Content-Type': "application/json"   // <--- FIXED HERE
+    // 1. Check if test case exists by searching Jira issues with key or summary
+    let searchRes = await axios.get(`${process.env.JIRA_BASE_URL}/rest/api/3/search`, {
+      auth: JIRA_AUTH,
+      params: {
+        jql: `summary ~ "${name}" AND project = "${process.env.JIRA_PROJECT_KEY}" AND issuetype = Test`,
+        maxResults: 1
       }
     });
 
-    const testCaseId = response.data.key;
+    let testCaseKey;
 
-    await axios.post(`${process.env.XRAY_BASE_URL}/api/v2/testset/${testSetKey}/test`, [testCaseId], {
+    if (searchRes.data.issues.length > 0) {
+      testCaseKey = searchRes.data.issues[0].key;
+      console.log(`↩️ Test case already exists: ${testCaseKey}`);
+
+      // Optional: update issue fields if needed here
+
+    } else {
+      // Create test case issue
+      const createRes = await axios.post(`${process.env.JIRA_BASE_URL}/rest/api/3/issue`, {
+        fields: {
+          project: { key: process.env.JIRA_PROJECT_KEY },
+          summary: name,
+          description,
+          issuetype: { name: 'Test' },
+          labels
+        }
+      }, { auth: JIRA_AUTH });
+
+      testCaseKey = createRes.data.key;
+      console.log(`✅ Created test case: ${testCaseKey}`);
+    }
+
+    // 2. Link test case to Test Set
+    await axios.post(`${process.env.XRAY_BASE_URL}/api/v2/testset/${testSetKey}/test`, [testCaseKey], {
       headers: { Authorization: `Bearer ${XRAY_TOKEN}` }
     });
 
-    await axios.post(`${process.env.XRAY_BASE_URL}/api/v2/testexecution/${testExecutionKey}/test`, [testCaseId], {
+    // 3. Link test case to Test Execution
+    await axios.post(`${process.env.XRAY_BASE_URL}/api/v2/testexecution/${testExecutionKey}/test`, [testCaseKey], {
       headers: { Authorization: `Bearer ${XRAY_TOKEN}` }
     });
 
     console.log(`✅ Linked to [${testSetKey}] and [${testExecutionKey}]`);
-  } catch (error) {
-    console.error(`❌ Error calling ${process.env.XRAY_BASE_URL}/api/v2/import/test`);
-    if (error.response) {
-      console.error('Status:', error.response.status);
-      console.error('Data:', JSON.stringify(error.response.data, null, 2));
-    } else {
-      console.error(error.message);
-    }
-    throw error; // rethrow to be caught by upper-level try/catch
-  }
+    return testCaseKey;
 
+  } catch (error) {
+    console.error(`❌ Error syncing test case:`, error.response?.data || error.message);
+    throw error;
+  }
 }
+
 
 // =====================================================
 // 🐞 Create or Update Jira Bug Linked to a Test Case

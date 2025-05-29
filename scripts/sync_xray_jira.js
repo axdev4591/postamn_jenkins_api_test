@@ -150,6 +150,27 @@ async function createOrUpdateXrayTestCase(key, name, description, labels, testSe
   }
 }
 
+function formatToADF(text) {
+  return {
+    type: "doc",
+    version: 1,
+    content: [
+      {
+        type: "paragraph",
+        content: [
+          {
+            type: "text",
+            text: text || ""
+          }
+        ]
+      }
+    ]
+  };
+}
+
+
+
+
 // 🔥 Main Sync Function
 async function syncPostmanResults(resultsJsonPath) {
   try {
@@ -186,28 +207,13 @@ async function syncPostmanResults(resultsJsonPath) {
       const method = request.method || 'GET';
       const queryParams = extractParams(request.url);
       const testScripts = extractTestScripts(event);
-      const description1 =
+      const description =
         `Request:\n- URL: ${requestUrl}\n- Method: ${method}\n- Query Params:\n${queryParams}\n\n` +
         `Test Scripts:\n${testScripts}\n\nLinked Jenkins Pipeline: ${JENKINS_PIPELINE_LINK}`;
-      const description = `{
-          "type": "doc",
-          "version": 1,
-          "content": [
-            {
-              "type": "paragraph",
-              "content": [
-                {
-                  "type": "text",
-                  "text": ${description1}
-                }
-              ]
-            }
-          ]
-        }`;
 
 
       const testCaseKey = await createOrUpdateXrayTestCase(
-        testCaseKeyFromName, testName, description, LABELS, testSetKey, testExecutionKey
+        testCaseKeyFromName, testName, formatToADF(description), LABELS, testSetKey, testExecutionKey
       );
 
       console.log(`✅ Synced test: ${testName} (${testCaseKey})`);

@@ -232,19 +232,18 @@ async function linkTestToTestExecution(testIssueKey, testExecutionKey) {
   try {
     const token = await getXrayAuthToken();
 
-    await axios.post(
-      `${process.env.XRAY_BASE_URL}/api/v2/testexecution/${testExecutionKey}/test`,
-      {
-        add: [testIssueKey]
-      },
-      {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      }
-    );
+    const url = `${process.env.XRAY_BASE_URL}/api/v2/testexec/test`;
+    console.log("👉 Linking test to Test Execution via:", url);
 
+    await axios.post(url, {
+      testExecutionKey,
+      tests: [testIssueKey]
+    }, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      }
+    });
 
     console.log(`🔗 Linked test ${testIssueKey} to Test Execution ${testExecutionKey}`);
   } catch (error) {

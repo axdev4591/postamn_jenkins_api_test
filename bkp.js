@@ -551,11 +551,11 @@ async function syncPostmanResults(resultsJsonPath) {
             const testCaseKeyCandidate = testCaseMatch[1]; // e.g. "API01-TS01-TE01"
 
             // Extract Test Set key from test case key
-            const testSetMatch = testCaseKeyCandidate.match(RE_TEST_SET);
-            if (!testSetMatch) {
-                console.warn(`⚠️ Test Set key not found in test case key: ${testCaseKeyCandidate}`);
-                continue;
-            }
+            /*  const testSetMatch = testCaseKeyCandidate.match(RE_TEST_SET);
+              if (!testSetMatch) {
+                  console.warn(`⚠️ Test Set key not found in test case key: ${testCaseKeyCandidate}`);
+                  continue;
+              }*/
             // Format test set key as TS-xx (e.g. TS01 -> TS-01)
             const testSetKey = testSetMatch[0].replace(/^TS/, 'TS-');
 

@@ -265,6 +265,41 @@ async function fetchJiraWorkflowTransitions(issueKeyExample) {
   }
 }
 
+// ============================================
+// 📎 Retrieve All Custom Fields from Jira
+// ============================================
+async function fetchJiraCustomFields() {
+  try {
+    const url = buildApiUrl(process.env.JIRA_BASE_URL, '/rest/api/3/field');
+    const response = await axios.get(url, {
+      auth: JIRA_AUTH,
+      headers: { 'Content-Type': 'application/json' }
+    });
+
+    const customFields = response.data.filter(field => field.custom);
+    console.log('📋 Retrieved custom fields:');
+    for (const field of customFields) {
+      console.log(`- ${field.name} (ID: ${field.id})`);
+    }
+
+    return customFields;
+  } catch (error) {
+    console.error('❌ Failed to fetch custom fields:', error.response?.data || error.message);
+    throw error;
+  }
+}
+
+// Example usage:
+(async () => {
+  const fields = await fetchJiraCustomFields();
+  const xrayField = fields.find(f => f.name === 'Jenkins_postman'); // Change this to match your field label
+  if (xrayField) {
+    console.log(`✅ Found Test Type field ID: ${xrayField.id}`);
+  } else {
+    console.warn('⚠️ Test Type field not found!');
+  }
+})();
+
 // ================================
 // 🔄 Update Jira Bug Status Function
 // ================================

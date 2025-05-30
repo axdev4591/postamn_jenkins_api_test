@@ -384,7 +384,7 @@ async function findExistingBugForTest(testKey) {
 // ============================
 async function syncPostmanResults(resultsJsonPath) {
   try {
-    const exampleBugIssueKey = `${process.env.JIRA_PROJECT_KEY}-4`;
+    const exampleBugIssueKey = `${process.env.JIRA_PROJECT_KEY}-1`;
     await fetchJiraWorkflowTransitions(exampleBugIssueKey);
     await listIssueLinkTypes();
 

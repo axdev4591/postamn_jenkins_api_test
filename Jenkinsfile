@@ -87,7 +87,7 @@ pipeline {
             def results = readJSON file: 'results.json'
             if (results.run?.meta?.collectionName) {
               def collectionName = results.run?.meta?.collectionName
-              def matcher = collectionName =~ /\[(TE-\d+)\]/
+              def matcher = collectionName =~ /\[(\w+-\d+)\]\[(\w+-\d+)\]/
               if (matcher) {
                 execKey = matcher[0][1]
               } else {

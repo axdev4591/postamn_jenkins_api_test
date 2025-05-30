@@ -156,10 +156,10 @@ async function createOrUpdateXrayTestCase(key, name, description, labels, testSe
 
     // Link to Test Set
     console.log(`🔗 Linking test to Test Set: ${testSetKey}`);
-    // await linkTestToTestSet(testCaseKey, testSetKey);
+    await linkTestToTestSet(testCaseKey, testSetKey);
 
     // Link to Test Execution
-    //await linkTestToTestExecution(testCaseKey, testExecutionKey);
+    await linkTestToTestExecution(testCaseKey, testExecutionKey);
 
     return testCaseKey;
 
@@ -522,7 +522,7 @@ async function findExistingBugForTest(testKey) {
 //verify keys exist in jira
 const verifyJiraIssueExists = async (issueKey, expectedType) => {
   try {
-    const response = await axios.get(`${JIRA_BASE_URL}/rest/api/3/issue/${issueKey}`, {
+    const response = await axios.get(`${process.env.JIRA_BASE_URL}/rest/api/3/issue/${issueKey}`, {
       headers: {
         Authorization: authHeader,
         Accept: 'application/json',
@@ -556,7 +556,7 @@ async function syncPostmanResults(resultsJsonPath) {
     // Read Postman results.json
     const resultsData = JSON.parse(fs.readFileSync(resultsJsonPath, 'utf-8'));
 
-    // Extract Test Execution key from collection name (e.g. "My API Tests [TE-01]")
+    // Extract Test Execution key from collection name (e.g. "My API Tests [IDC-1]")
     // Logging summary per test
     const collectionName = resultsData.run?.meta.collectionName || 'Unknown Collection';
     //const testExecutionMatch = collectionName.match(RE_JIRA_KEYS);
@@ -582,19 +582,12 @@ async function syncPostmanResults(resultsJsonPath) {
     for (const exec of resultsData.run.executions) {
       const requestName = exec.requestExecuted?.name || 'Unnamed Request';
       // Extract test case key from request name (e.g. "[API01-TS01-TE01]")
-      const testCaseMatch = requestName.match(RE_JIRA_KEYS);
+      const testCaseMatch = requestName.match(RE_TEST_CASE);
       if (!testCaseMatch) {
         console.warn(`⚠️ Test case key not found in request name: ${requestName}`);
         continue; // skip this test
       }
       const testCaseKeyCandidate = testCaseMatch[1]; // e.g. "API01-TS01-TE01"
-
-      // Extract Test Set key from test case key
-      const testSetMatch = testCaseKeyCandidate.match(RE_TEST_SET);
-      if (!testSetMatch) {
-        console.warn(`⚠️ Test Set key not found in test case key: ${testCaseKeyCandidate}`);
-        continue;
-      }
 
       // Compose test case name and description
       const testCaseName = `[${testCaseKeyCandidate}] ${requestName}`;

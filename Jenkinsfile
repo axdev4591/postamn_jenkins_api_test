@@ -11,7 +11,7 @@ pipeline {
     PATH = "${JENKINS_HOME}/.postman-cli-cache/PostmanCLI:${env.PATH}"
 
     JIRA_BASE_URL = 'https://axelmouele4591.atlassian.net'
-    JIRA_PROJECT_KEY = 'SCRUM'
+    JIRA_PROJECT_KEY = 'IDC'
     BUG_ISSUE_TYPE = 'Bug'
     XRAY_BASE_URL = 'https://xray.cloud.getxray.app'
     JIRA_USER = 'axelmouele4591@gmail.com' // Change as needed

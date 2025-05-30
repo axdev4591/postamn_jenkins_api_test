@@ -475,7 +475,7 @@ async function syncPostmanResults(resultsJsonPath) {
       const testCaseKeyCandidate = testCaseMatch[1]; // e.g. "API01-TS01-TE01"
 
       // Extract Test Set key from test case key
-      const testSetMatch = testCaseKeyCandidate.match(/\bTS\d+\b/);
+      const testSetMatch = testCaseKeyCandidate.match(RE_TEST_SET);
       if (!testSetMatch) {
         console.warn(`⚠️ Test Set key not found in test case key: ${testCaseKeyCandidate}`);
         continue;

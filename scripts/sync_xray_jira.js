@@ -232,12 +232,12 @@ async function linkTestToTestExecution(testIssueKey, testExecutionKey) {
   try {
     const token = await getXrayAuthToken();
 
-    const url = `${process.env.XRAY_BASE_URL}/api/v2/testexec/test`;
+    const url = `${process.env.JIRA_BASE_URL}/rest/raven/1.0/api/testexec/${testExecutionKey}/test`;
     console.log("👉 Linking test to Test Execution via:", url);
 
     await axios.post(url, {
-      testExecutionKey,
-      tests: [testIssueKey]
+      //  testExecutionKey,
+      "add": [testIssueKey]
     }, {
       headers: {
         Authorization: `Bearer ${token}`,

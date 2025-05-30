@@ -30,6 +30,9 @@ const XRAY_TEST_TYPE_FIELD_ID = "customfield_XXXXX"; // Replace with your actual
 const RE_TEST_EXECUTION = /\[(IDC-\d+)\]/;
 const RE_TEST_SET = /\[(IDC-\d+)\]/;
 const RE_TEST_CASE = /\[(API\d+-IDC\d+-IDC\d+)\]/;
+// Matches multiple Jira keys like [IDC-7][IDC-6] Title
+const RE_JIRA_KEYS = /\[(\w+-\d+)\]\[(\w+-\d+)\]/;
+
 
 // 🔗 Jenkins Pipeline URL for traceability
 const JENKINS_PIPELINE_LINK = 'https://your-jenkins-pipeline-link.example.com';
@@ -515,6 +518,29 @@ async function findExistingBugForTest(testKey) {
     return null;
 }
 
+
+//verify keys exist in jira
+const verifyJiraIssueExists = async (issueKey, expectedType) => {
+    try {
+        const response = await axios.get(`${JIRA_BASE_URL}/rest/api/3/issue/${issueKey}`, {
+            headers: {
+                Authorization: authHeader,
+                Accept: 'application/json',
+            },
+        });
+
+        const actualType = response.data.fields.issuetype.name;
+        if (actualType !== expectedType) {
+            throw new Error(`Issue ${issueKey} is of type ${actualType}, expected ${expectedType}`);
+        }
+
+        return true;
+    } catch (err) {
+        console.error(`❌ Failed to verify issue ${issueKey}:`, err.response?.data || err.message);
+        return false;
+    }
+};
+
 // ============================
 // 🔥 Main Sync Function
 // ============================
@@ -533,17 +559,28 @@ async function syncPostmanResults(resultsJsonPath) {
         // Extract Test Execution key from collection name (e.g. "My API Tests [TE-01]")
         // Logging summary per test
         const collectionName = resultsData.run?.meta.collectionName || 'Unknown Collection';
-        const testExecutionMatch = collectionName.match(RE_TEST_EXECUTION);
-        if (!testExecutionMatch) {
-            throw new Error(`Test Execution key not found in collection name: ${collectionName}`);
+        //const testExecutionMatch = collectionName.match(RE_JIRA_KEYS);
+
+        const match = collectionName.match(RE_JIRA_KEYS);
+        if (!match) {
+            throw new Error(`❌ Collection name does not contain valid test execution and test set keys.: ${collectionName}`);
         }
-        const testExecutionKey = testExecutionMatch[1]; // e.g. "TE-01"
+
+        const [_, testExecutionKey, testSetKey] = match;
+
+        console.log(`🧩 Test Execution Key: ${testExecutionKey}`);
+        console.log(`🧩 Test Set Key: ${testSetKey}`);
+
+        await verifyJiraIssueExists(testExecutionKey, 'Test Execution');
+        await verifyJiraIssueExists(testSetKey, 'Test Set');
+
+        // const testExecutionKey = testExecutionMatch[1]; // e.g. "TE-01"
 
         // Loop through each Postman execution (individual request test result)
         for (const exec of resultsData.run.executions) {
             const requestName = exec.requestExecuted?.name || 'Unnamed Request';
             // Extract test case key from request name (e.g. "[API01-TS01-TE01]")
-            const testCaseMatch = requestName.match(RE_TEST_CASE);
+            const testCaseMatch = requestName.match(RE_JIRA_KEYS);
             if (!testCaseMatch) {
                 console.warn(`⚠️ Test case key not found in request name: ${requestName}`);
                 continue; // skip this test
@@ -556,8 +593,6 @@ async function syncPostmanResults(resultsJsonPath) {
                 console.warn(`⚠️ Test Set key not found in test case key: ${testCaseKeyCandidate}`);
                 continue;
             }
-            // Format test set key as TS-xx (e.g. IDC1 -> IDC-1)
-            const testSetKey = testSetMatch[0].replace(/^IDC/, 'IDC-');
 
             // Compose test case name and description
             const testCaseName = `[${testCaseKeyCandidate}] ${requestName}`;

@@ -244,7 +244,7 @@ async function linkTestToTestExecution(testIssueKey, testExecutionKey) {
          },
        }
      );*/
-    await axios.post(`${XRAY_BASE_URL}/api/v2/testexecution`, {
+    await axios.post(`${process.env.XRAY_BASE_URL}/api/v2/testexecution`, {
       testExecutionKey: testExecutionKey,
       tests: [testIssueKey]
     }, {

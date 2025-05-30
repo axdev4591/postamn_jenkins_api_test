@@ -135,12 +135,8 @@ async function createOrUpdateXrayTestCase(key, name, description, labels, testSe
     await linkTestToTestSet(testCaseKey, testSetKey);
 
     // Link to Test Execution
-    console.log(`🔗 Linking test to Test Execution: ${testExecutionKey}`);
-    await axios.post(buildApiUrl(process.env.XRAY_BASE_URL, `/api/v2/testexecution/${testExecutionKey}/test`), {
-      add: [testCaseKey]
-    }, {
-      headers: { Authorization: `Bearer ${XRAY_TOKEN}` }
-    });
+    await linkTestToTestExecution(testCaseKey, testExecutionKey);
+
 
     return testCaseKey;
 
@@ -150,6 +146,9 @@ async function createOrUpdateXrayTestCase(key, name, description, labels, testSe
   }
 }
 
+// ==============================
+// 📎 Description of test as ADF
+// ============================== 
 function formatToADF(text) {
   return {
     type: "doc",
@@ -168,12 +167,42 @@ function formatToADF(text) {
   };
 }
 
+// ============================
+// 📎 Link test to test execution
+// ============================
+async function linkTestToTestExecution(testIssueKey, testExecutionKey) {
+  try {
+    const token = await getXrayAuthToken(); // ✅ Xray Bearer Token
+
+    const response = await axios.post(
+      `${XRAY_BASE_URL}/api/v2/testexecution/${testExecutionKey}/test`,
+      {
+        add: [testIssueKey],
+      },
+      {
+        headers: {
+          Authorization: `Bearer ${token}`, // ✅ Bearer token
+          'Content-Type': 'application/json',
+        },
+      }
+    );
+
+
+    console.log(`🔗 Linked test to Test Execution: ${testExecutionKey}`);
+  } catch (error) {
+    console.error(`❌ Failed to link test ${testIssueKey} to Test Execution ${testExecutionKey}:`, error.response?.data || error.message);
+  }
+}
+
+// ============================
+// 📎 Link test to test set
+// ============================
 async function linkTestToTestSet(testKey, testSetKey) {
   const url = `${process.env.JIRA_BASE_URL}/rest/api/3/issueLink`;
 
   const payload = {
     type: {
-      name: "Test Set" // Use appropriate link type name for Test Sets in your config
+      name: "Test" // Use appropriate link type name for Test Sets in your config
     },
     inwardIssue: {
       key: testSetKey

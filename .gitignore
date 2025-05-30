@@ -19,3 +19,4 @@ results.json
 .idea/
 .vscode/
 *.swp
+sync-postman/

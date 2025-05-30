@@ -120,9 +120,9 @@ async function createOrUpdateXrayTestCase(key, name, description, labels, testSe
                 fields: {
                     project: { key: process.env.JIRA_PROJECT_KEY },
                     summary: name,
-                    description,
+                    //description,
                     issuetype: { name: 'Test' },
-                    labels
+                    // labels
                 }
             }, { auth: JIRA_AUTH });
 

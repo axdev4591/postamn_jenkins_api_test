@@ -520,7 +520,8 @@ async function findExistingBugForTest(testKey) {
 
 
 //verify keys exist in jira
-/*const verifyJiraIssueExists = async (issueKey, expectedType) => {
+/*
+const verifyJiraIssueExists = async (issueKey, expectedType) => {
   try {
     const response = await axios.get(`${process.env.JIRA_BASE_URL}/rest/api/3/issue/${issueKey}`, {
       headers: {
@@ -573,8 +574,8 @@ async function syncPostmanResults(resultsJsonPath) {
     console.log(`🧩 Test Execution Key: ${testExecutionKey}`);
     console.log(`🧩 Test Set Key: ${testSetKey}`);
 
-    await verifyJiraIssueExists(testExecutionKey, 'Test Execution');
-    await verifyJiraIssueExists(testSetKey, 'Test Set');
+    //await verifyJiraIssueExists(testExecutionKey, 'Test Execution');
+    //await verifyJiraIssueExists(testSetKey, 'Test Set');
 
     // const testExecutionKey = testExecutionMatch[1]; // e.g. "TE-01"
 

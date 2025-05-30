@@ -27,9 +27,9 @@ const XRAY_TEST_TYPE_FIELD_ID = "customfield_XXXXX"; // Replace with your actual
 // =====================
 // 🔍 Regex Definitions
 // =====================
-const RE_TEST_EXECUTION = /\[(TE-\d+)\]/;
-const RE_TEST_SET = /\[(TS-\d+)\]/;
-const RE_TEST_CASE = /\[(API\d+-TS\d+-TE\d+)\]/;
+const RE_TEST_EXECUTION = /\[(IDC-\d+)\]/;
+const RE_TEST_SET = /\[(IDC-\d+)\]/;
+const RE_TEST_CASE = /\[(API\d+-IDC\d+-IDC\d+)\]/;
 
 // 🔗 Jenkins Pipeline URL for traceability
 const JENKINS_PIPELINE_LINK = 'https://your-jenkins-pipeline-link.example.com';
@@ -551,13 +551,13 @@ async function syncPostmanResults(resultsJsonPath) {
             const testCaseKeyCandidate = testCaseMatch[1]; // e.g. "API01-TS01-TE01"
 
             // Extract Test Set key from test case key
-            /*  const testSetMatch = testCaseKeyCandidate.match(RE_TEST_SET);
-              if (!testSetMatch) {
-                  console.warn(`⚠️ Test Set key not found in test case key: ${testCaseKeyCandidate}`);
-                  continue;
-              }*/
-            // Format test set key as TS-xx (e.g. TS01 -> TS-01)
-            const testSetKey = testSetMatch[0].replace(/^TS/, 'TS-');
+            const testSetMatch = testCaseKeyCandidate.match(RE_TEST_SET);
+            if (!testSetMatch) {
+                console.warn(`⚠️ Test Set key not found in test case key: ${testCaseKeyCandidate}`);
+                continue;
+            }
+            // Format test set key as TS-xx (e.g. IDC1 -> IDC-1)
+            const testSetKey = testSetMatch[0].replace(/^IDC/, 'IDC-');
 
             // Compose test case name and description
             const testCaseName = `[${testCaseKeyCandidate}] ${requestName}`;

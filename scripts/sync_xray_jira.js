@@ -233,7 +233,7 @@ async function linkTestToTestExecution(testIssueKey, testExecutionKey) {
     const token = await getXrayAuthToken(); // ✅ Xray Bearer Token
 
     const response = await axios.post(
-      `${XRAY_BASE_URL}/api/v2/testexecution/${testExecutionKey}/test`,
+      `${process.env.XRAY_BASE_URL}/api/v2/testexecution/${testExecutionKey}/test`,
       {
         add: [testIssueKey],
       },
@@ -520,7 +520,7 @@ async function findExistingBugForTest(testKey) {
 
 
 //verify keys exist in jira
-const verifyJiraIssueExists = async (issueKey, expectedType) => {
+/*const verifyJiraIssueExists = async (issueKey, expectedType) => {
   try {
     const response = await axios.get(`${process.env.JIRA_BASE_URL}/rest/api/3/issue/${issueKey}`, {
       headers: {
@@ -539,7 +539,7 @@ const verifyJiraIssueExists = async (issueKey, expectedType) => {
     console.error(`❌ Failed to verify issue ${issueKey}:`, err.response?.data || err.message);
     return false;
   }
-};
+};*/
 
 // ============================
 // 🔥 Main Sync Function
@@ -590,7 +590,7 @@ async function syncPostmanResults(resultsJsonPath) {
       const testCaseKeyCandidate = testCaseMatch[1]; // e.g. "API01-TS01-TE01"
 
       // Compose test case name and description
-      const testCaseName = `[${testCaseKeyCandidate}] ${requestName}`;
+      const testCaseName = `${requestName}`;
       const description = `Test case from Postman request: ${requestName}\nLinked Jenkins Pipeline: ${JENKINS_PIPELINE_LINK}`;
 
       // Determine overall test status from all test assertions for this execution

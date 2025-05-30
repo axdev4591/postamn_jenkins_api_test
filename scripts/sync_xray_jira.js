@@ -365,22 +365,27 @@ async function listIssueLinkTypes() {
 
 // ===============================
 // 📎 Link bug to its test case
-// ================================
+// ===============================
 async function linkBugToTestCase(bugKey, testKey) {
   const url = `${process.env.JIRA_BASE_URL}/rest/api/3/issueLink`;
   const payload = {
-    type: { name: "Relates" },
+    type: { name: "Relates" }, // You can use other types like "Blocks", "Tests", etc.
     inwardIssue: { key: bugKey },
     outwardIssue: { key: testKey }
   };
 
-  await axios.post(url, payload, {
-    auth: JIRA_AUTH,
-    headers: { 'Content-Type': 'application/json' }
-  });
+  try {
+    await axios.post(url, payload, {
+      auth: JIRA_AUTH,
+      headers: { 'Content-Type': 'application/json' }
+    });
 
-  console.log(`🔗 Linked bug ${bugKey} to test case ${testKey}`);
+    console.log(`🔗 Linked bug ${bugKey} to test case ${testKey}`);
+  } catch (error) {
+    console.error(`❌ Failed to link bug ${bugKey} to test case ${testKey}:`, error.response?.data || error.message);
+  }
 }
+
 
 
 // =============================================
@@ -593,14 +598,36 @@ async function syncPostmanResults(resultsJsonPath) {
   }
 }
 
-// =======================
-// 🚀 CLI Entry Point
-// =======================
+module.exports = {
+  TEST_STATUS,
+  BUG_LIFECYCLE,
+  XRAY_TEST_TYPE,
+  XRAY_TEST_TYPE_FIELD_ID,
+  JENKINS_PIPELINE_LINK,
+  authenticateXray,
+  getXrayAuthToken,
+  createOrUpdateXrayTestCase,
+  linkTestToTestExecution,
+  linkTestToTestSet,
+  updateJiraBugStatus,
+  fetchJiraWorkflowTransitions,
+  fetchJiraCustomFields,
+  listIssueLinkTypes,
+  linkBugToTestCase,
+  buildApiUrl,
+  buildRequestUrl,
+  extractParams,
+  extractTestScripts,
+  formatToADF
+};
+
+// Export for CLI or Jenkins
+module.exports = { syncPostmanResults };
+
+// If run directly from CLI
 if (require.main === module) {
-  const resultsJsonPath = process.argv[2];
-  if (!resultsJsonPath) {
-    console.error('Usage: node sync.js <postman_results.json>');
-    process.exit(1);
-  }
-  syncPostmanResults(resultsJsonPath);
+  const filePath = process.argv[2] || './results.json';
+  syncPostmanResults(filePath);
 }
+
+

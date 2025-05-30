@@ -228,6 +228,7 @@ function formatToADF(text) {
 // ============================
 // 📎 Link test to test execution
 // ============================
+/*
 async function linkTestToTestExecution(testIssueKey, testExecutionKey) {
   try {
     const token = await getXrayAuthToken();
@@ -249,7 +250,36 @@ async function linkTestToTestExecution(testIssueKey, testExecutionKey) {
   } catch (error) {
     console.error(`❌ Failed to link test ${testIssueKey} to Test Execution ${testExecutionKey}:`, error.response?.data || error.message);
   }
+}*/
+async function linkTestToTestExecution(testIssueKey, testExecutionKey) {
+  try {
+    const token = await getXrayAuthToken();
+
+    const url = `${process.env.XRAY_BASE_URL}/api/v2/graphql`;
+
+    const query = {
+      query: `
+        mutation {
+          addTestsToTestExecution(issueId: "${testExecutionKey}", testIssueIds: ["${testIssueKey}"]) {
+            addedTests
+          }
+        }
+      `
+    };
+
+    const response = await axios.post(url, query, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      }
+    });
+
+    console.log(`✅ Linked test ${testIssueKey} to Test Execution ${testExecutionKey}`);
+  } catch (error) {
+    console.error(`❌ Failed to link test ${testIssueKey} to Test Execution ${testExecutionKey}:`, error.response?.data || error.message);
+  }
 }
+
 
 
 // ============================

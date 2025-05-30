@@ -456,7 +456,7 @@ async function syncPostmanResults(resultsJsonPath) {
 
     // Extract Test Execution key from collection name (e.g. "My API Tests [TE-01]")
     // Logging summary per test
-    const collectionName = resultsData.run?.meta.collection?.name || 'Unknown Collection';
+    const collectionName = resultsData.run?.meta.collectionName || 'Unknown Collection';
     const testExecutionMatch = collectionName.match(RE_TEST_EXECUTION);
     if (!testExecutionMatch) {
       throw new Error(`Test Execution key not found in collection name: ${collectionName}`);

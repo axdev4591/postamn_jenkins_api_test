@@ -288,9 +288,9 @@ async function updateJiraBugStatus(issueKey, status) {
   }
 }
 
-// ============================
+// =================================
 // 📎 List all Jira Issue Link Types
-// ============================
+// ==================================
 async function listIssueLinkTypes() {
   try {
     const url = buildApiUrl(process.env.JIRA_BASE_URL, '/rest/api/3/issueLinkType');
@@ -306,6 +306,77 @@ async function listIssueLinkTypes() {
     console.error('❌ Failed to fetch Jira issue link types:', error.response?.data || error.message);
     throw error;
   }
+}
+
+// ===============================
+// 📎 Link bug to its test case
+// ================================
+async function linkBugToTestCase(bugKey, testKey) {
+  const url = `${process.env.JIRA_BASE_URL}/rest/api/3/issueLink`;
+  const payload = {
+    type: { name: "Relates" },
+    inwardIssue: { key: bugKey },
+    outwardIssue: { key: testKey }
+  };
+
+  await axios.post(url, payload, {
+    auth: JIRA_AUTH,
+    headers: { 'Content-Type': 'application/json' }
+  });
+
+  console.log(`🔗 Linked bug ${bugKey} to test case ${testKey}`);
+}
+
+
+// =============================================
+// 📎 Create or Update Bug base on test status
+// =============================================
+async function createOrUpdateBugForTest(testKey, testName, description) {
+  const searchUrl = buildApiUrl(process.env.JIRA_BASE_URL, '/rest/api/3/search');
+  const jql = `project = ${process.env.JIRA_PROJECT_KEY} AND issuetype = ${process.env.BUG_ISSUE_TYPE} AND "Test Case" = ${testKey}`;
+
+  const result = await axios.get(searchUrl, {
+    auth: JIRA_AUTH,
+    params: { jql, maxResults: 1 }
+  });
+
+  if (result.data.issues.length > 0) {
+    return result.data.issues[0].key;
+  }
+
+  const createUrl = buildApiUrl(process.env.JIRA_BASE_URL, '/rest/api/3/issue');
+  const res = await axios.post(createUrl, {
+    fields: {
+      project: { key: process.env.JIRA_PROJECT_KEY },
+      summary: `❌ Failed Test: ${testName}`,
+      description,
+      issuetype: { name: process.env.BUG_ISSUE_TYPE },
+      labels: ['postman', 'automation'],
+      // You may need to customize this field based on your Jira config
+      // "customfield_XXXXX": testKey // Link test case to bug (custom field or use linking)
+    }
+  }, { auth: JIRA_AUTH });
+
+  return res.data.key;
+}
+
+// =============================================
+// 📎 Find existing bug for a specific test
+// =============================================
+async function findExistingBugForTest(testKey) {
+  const jql = `project = ${process.env.JIRA_PROJECT_KEY} AND issuetype = ${process.env.BUG_ISSUE_TYPE} AND "Test Case" = ${testKey}`;
+  const searchUrl = buildApiUrl(process.env.JIRA_BASE_URL, '/rest/api/3/search');
+
+  const res = await axios.get(searchUrl, {
+    auth: JIRA_AUTH,
+    params: { jql, maxResults: 1 }
+  });
+
+  if (res.data.issues.length > 0) {
+    return res.data.issues[0].key;
+  }
+
+  return null;
 }
 
 // ============================
@@ -355,10 +426,16 @@ async function syncPostmanResults(resultsJsonPath) {
       );
 
       if (status === TEST_STATUS.FAILED) {
-        await updateJiraBugStatus(jiraTestKey, BUG_LIFECYCLE.REOPENED);
+        const bugKey = await createOrUpdateBugForTest(jiraTestKey, testName, description);
+        await updateJiraBugStatus(bugKey, BUG_LIFECYCLE.REOPENED);
+        await linkBugToTestCase(bugKey, jiraTestKey);
       } else if (status === TEST_STATUS.PASSED) {
-        await updateJiraBugStatus(jiraTestKey, BUG_LIFECYCLE.CLOSED);
+        const bugKey = await findExistingBugForTest(jiraTestKey);
+        if (bugKey) {
+          await updateJiraBugStatus(bugKey, BUG_LIFECYCLE.CLOSED);
+        }
       }
+
     }
 
     console.log('🎉 Sync complete');
@@ -367,6 +444,7 @@ async function syncPostmanResults(resultsJsonPath) {
     console.error('❌ Sync failed:', error.message);
   }
 }
+
 
 // =======================
 // 🚀 CLI Entry Point

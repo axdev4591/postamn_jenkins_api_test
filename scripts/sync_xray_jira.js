@@ -455,7 +455,8 @@ async function syncPostmanResults(resultsJsonPath) {
     const resultsData = JSON.parse(fs.readFileSync(resultsJsonPath, 'utf-8'));
 
     // Extract Test Execution key from collection name (e.g. "My API Tests [TE-01]")
-    const collectionName = resultsData.run?.collection?.name || 'Unknown Collection';
+    // Logging summary per test
+    const collectionName = resultsData.run?.meta.collection?.name || 'Unknown Collection';
     const testExecutionMatch = collectionName.match(RE_TEST_EXECUTION);
     if (!testExecutionMatch) {
       throw new Error(`Test Execution key not found in collection name: ${collectionName}`);
@@ -464,7 +465,7 @@ async function syncPostmanResults(resultsJsonPath) {
 
     // Loop through each Postman execution (individual request test result)
     for (const exec of resultsData.run.executions) {
-      const requestName = exec?.item?.name || exec.requestExecuted?.name || 'Unnamed Request';
+      const requestName = exec.requestExecuted?.name || 'Unnamed Request';
       // Extract test case key from request name (e.g. "[API01-TS01-TE01]")
       const testCaseMatch = requestName.match(RE_TEST_CASE);
       if (!testCaseMatch) {
@@ -489,7 +490,7 @@ async function syncPostmanResults(resultsJsonPath) {
       // Determine overall test status from all test assertions for this execution
       // Note: exec.assertions or exec.tests array depends on Postman result structure
       // Here we check exec.assertions or fallback to exec.tests with 'assertions' array
-      const testAssertions = exec.assertions || (exec.tests && exec.tests.length ? exec.tests : []);
+      const testAssertions = exec.tests || (exec.tests && exec.tests.length ? exec.tests : []);
       // If no assertions, mark skipped
       let overallStatus = TEST_STATUS.SKIPPED;
       if (testAssertions.length > 0) {

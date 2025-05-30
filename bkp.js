@@ -562,11 +562,13 @@ async function syncPostmanResults(resultsJsonPath) {
         //const testExecutionMatch = collectionName.match(RE_JIRA_KEYS);
 
         const match = collectionName.match(RE_JIRA_KEYS);
-        if (!match) {
+        if (!match || match.length < 3) {
             throw new Error(`❌ Collection name does not contain valid test execution and test set keys.: ${collectionName}`);
         }
 
-        const [_, testExecutionKey, testSetKey] = match;
+        // By position: [IDC-7][IDC-6] → match[1] = IDC-7, match[2] = IDC-6
+        const testExecutionKey = match[1];
+        const testSetKey = match[2];
 
         console.log(`🧩 Test Execution Key: ${testExecutionKey}`);
         console.log(`🧩 Test Set Key: ${testSetKey}`);

@@ -230,35 +230,27 @@ function formatToADF(text) {
 // ============================
 async function linkTestToTestExecution(testIssueKey, testExecutionKey) {
   try {
-    const token = await getXrayAuthToken(); // ✅ Xray Bearer Token
+    const token = await getXrayAuthToken();
 
-    /* const response = await axios.post(
-       `${process.env.XRAY_BASE_URL}/api/v2/testexecution/${testExecutionKey}/test`,
-       {
-         add: [testIssueKey],
-       },
-       {
-         headers: {
-           Authorization: `Bearer ${token}`, // ✅ Bearer token
-           'Content-Type': 'application/json',
-         },
-       }
-     );*/
-    await axios.post(`${process.env.XRAY_BASE_URL}/api/v2/testexecution`, {
-      testExecutionKey: testExecutionKey,
+    const url = `${process.env.XRAY_BASE_URL}/api/v2/testexecution`;
+    console.log("👉 Linking test to Test Execution via:", url);
+
+    await axios.post(url, {
+      testExecutionKey,
       tests: [testIssueKey]
     }, {
       headers: {
-        Authorization: `Bearer ${token}`
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json'
       }
     });
 
-
-    console.log(`🔗 Linked test to Test Execution: ${testExecutionKey}`);
+    console.log(`🔗 Linked test ${testIssueKey} to Test Execution ${testExecutionKey}`);
   } catch (error) {
     console.error(`❌ Failed to link test ${testIssueKey} to Test Execution ${testExecutionKey}:`, error.response?.data || error.message);
   }
 }
+
 
 // ============================
 // 📎 Link test to test set

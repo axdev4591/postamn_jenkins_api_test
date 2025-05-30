@@ -17,6 +17,8 @@ require('dotenv').config();
 const TEST_STATUS = { PASSED: 'PASSED', FAILED: 'FAILED', SKIPPED: 'SKIPPED' };
 const BUG_LIFECYCLE = { CREATED: 'OPEN', REOPENED: 'REOPENED', CLOSED: 'CLOSED' };
 const LABELS = ['jenkins', 'postman', 'automation', 'TNR'];
+const XRAY_TEST_TYPE = "Jenkins_postman";
+const XRAY_TEST_TYPE_FIELD_ID = "customfield_XXXXX"; // Replace with your actual custom field ID
 
 // =====================
 // 🔍 Regex Definitions
@@ -122,7 +124,8 @@ async function createOrUpdateXrayTestCase(key, name, description, labels, testSe
           summary: name,
           description,
           issuetype: { name: 'Test' },
-          labels
+          labels,
+          // [XRAY_TEST_TYPE_FIELD_ID]: { value: XRAY_TEST_TYPE }  // <-- Here is the custom test type field
         }
       }, { auth: JIRA_AUTH });
 
@@ -136,7 +139,6 @@ async function createOrUpdateXrayTestCase(key, name, description, labels, testSe
 
     // Link to Test Execution
     await linkTestToTestExecution(testCaseKey, testExecutionKey);
-
 
     return testCaseKey;
 

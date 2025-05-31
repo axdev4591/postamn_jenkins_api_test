@@ -312,14 +312,14 @@ async function linkTestToTestExecution(testIssueKey, testExecutionKey) {
 async function addTestToTestSet(testKey, testSetKey) {
   const token = await getXrayAuthToken(); // make sure this returns a valid Xray Cloud token
 
-  const url = `${process.env.XRAY_BASE_URL}/rest/raven/1.0/api/testset/${testSetKey}/test`;
+  const url = `${process.env.XRAY_BASE_URL}/api/v2/testset/test`;
 
-  console.log("🔐 Got Xray Token:", token);
-  console.log('📡 Posting to:', url);
   const payload = {
+    testSetKey: testSetKey,
     add: [testKey]
   };
-
+  console.log("🔐 Got Xray Token:", token);
+  console.log('📡 Posting to:', url);
   try {
     const response = await axios.post(url, payload, {
       headers: {

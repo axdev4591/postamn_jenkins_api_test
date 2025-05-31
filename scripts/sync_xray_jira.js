@@ -290,6 +290,8 @@ async function addTestToTestSet(testKey, testSetKey) {
   const token = await getXrayAuthToken();
   const url = `${process.env.XRAY_BASE_URL}/api/v2/testset/${testSetKey}/test`;
 
+  console.log("🔐 Got Xray Token:", token);
+  console.log('📡 Posting to:', url);
   const payload = {
     add: [testKey]
   };

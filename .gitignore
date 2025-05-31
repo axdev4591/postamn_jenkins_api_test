@@ -20,3 +20,4 @@ results.json
 .vscode/
 *.swp
 sync-postman/
+bkp.js

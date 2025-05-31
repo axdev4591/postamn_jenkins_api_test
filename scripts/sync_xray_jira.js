@@ -155,8 +155,9 @@ async function createOrUpdateXrayTestCase(key, name, description, labels, testSe
     }
 
     // Link to Test Set
-    console.log(`🔗 Linking test to Test Set: ${testSetKey}`);
-    await linkTestToTestSet(testCaseKey, testSetKey);
+    console.log(`🔗 Add test to Test Set: ${testSetKey}`);
+    await addTestToTestSet(testCaseKey, testSetKey)
+    //await linkTestToTestSet(testCaseKey, testSetKey);
 
     // Link to Test Execution
     await linkTestToTestExecution(testCaseKey, testExecutionKey);
@@ -283,37 +284,27 @@ async function linkTestToTestExecution(testIssueKey, testExecutionKey) {
 
 
 // ============================
-// 📎 Link test to test set
+// 📎 Add test to test set
 // ============================
-async function linkTestToTestSet(testKey, testSetKey) {
-  const url = `${process.env.JIRA_BASE_URL}/rest/api/3/issueLink`;
+async function addTestToTestSet(testKey, testSetKey) {
+  const token = await getXrayAuthToken();
+  const url = `${process.env.XRAY_BASE_URL}/api/v2/testset/${testSetKey}/test`;
 
   const payload = {
-    type: {
-      name: "Test" // Use appropriate link type name for Test Sets in your config
-    },
-    inwardIssue: {
-      key: testSetKey
-    },
-    outwardIssue: {
-      key: testKey
-    }
+    add: [testKey]
   };
 
   try {
     const response = await axios.post(url, payload, {
-      auth: {
-        username: process.env.JIRA_USER,
-        password: process.env.JIRA_API_TOKEN
-      },
       headers: {
+        'Authorization': `Bearer ${token}`,
         'Content-Type': 'application/json'
       }
     });
 
-    console.log(`🔗 Linked test ${testKey} to Test Set ${testSetKey}`);
+    console.log(`✅ Added test ${testKey} to Test Set ${testSetKey}`);
   } catch (error) {
-    console.error(`❌ Failed to link test ${testKey} to Test Set ${testSetKey}:`, error.response?.data || error.message);
+    console.error(`❌ Failed to add test ${testKey} to Test Set ${testSetKey}:`, error.response?.data || error.message);
   }
 }
 
@@ -680,7 +671,7 @@ module.exports = {
   getXrayAuthToken,
   createOrUpdateXrayTestCase,
   linkTestToTestExecution,
-  linkTestToTestSet,
+  addTestToTestSet,
   updateJiraBugStatus,
   fetchJiraWorkflowTransitions,
   fetchJiraCustomFields,

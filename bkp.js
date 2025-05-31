@@ -155,11 +155,12 @@ async function createOrUpdateXrayTestCase(key, name, description, labels, testSe
         }
 
         // Link to Test Set
-        console.log(`🔗 Linking test to Test Set: ${testSetKey}`);
-        // await linkTestToTestSet(testCaseKey, testSetKey);
+        console.log(`🔗 Add test to Test Set: ${testSetKey}`);
+        await addTestToTestSet(testCaseKey, testSetKey)
+        //await linkTestToTestSet(testCaseKey, testSetKey);
 
         // Link to Test Execution
-        //await linkTestToTestExecution(testCaseKey, testExecutionKey);
+        await linkTestToTestExecution(testCaseKey, testExecutionKey);
 
         return testCaseKey;
 
@@ -228,33 +229,85 @@ function formatToADF(text) {
 // ============================
 // 📎 Link test to test execution
 // ============================
+/*
+async function linkTestToTestExecution(testIssueKey, testExecutionKey) {
+  try {
+    const token = await getXrayAuthToken();
+
+    const url = `${process.env.JIRA_BASE_URL}/rest/raven/1.0/api/testexec/${testExecutionKey}/test`;
+    console.log("👉 Linking test to Test Execution via:", url);
+
+    await axios.post(url, {
+      //  testExecutionKey,
+      "add": [testIssueKey]
+    }, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      }
+    });
+
+    console.log(`🔗 Linked test ${testIssueKey} to Test Execution ${testExecutionKey}`);
+  } catch (error) {
+    console.error(`❌ Failed to link test ${testIssueKey} to Test Execution ${testExecutionKey}:`, error.response?.data || error.message);
+  }
+}*/
 async function linkTestToTestExecution(testIssueKey, testExecutionKey) {
     try {
-        const token = await getXrayAuthToken(); // ✅ Xray Bearer Token
+        const token = await getXrayAuthToken();
 
-        const response = await axios.post(
-            `${XRAY_BASE_URL}/api/v2/testexecution/${testExecutionKey}/test`,
-            {
-                add: [testIssueKey],
-            },
-            {
-                headers: {
-                    Authorization: `Bearer ${token}`, // ✅ Bearer token
-                    'Content-Type': 'application/json',
-                },
+        const url = `${process.env.XRAY_BASE_URL}/api/v2/graphql`;
+
+        const query = {
+            query: `
+        mutation {
+          addTestsToTestExecution(issueId: "${testExecutionKey}", testIssueIds: ["${testIssueKey}"]) {
+            addedTests
+          }
+        }
+      `
+        };
+
+        const response = await axios.post(url, query, {
+            headers: {
+                Authorization: `Bearer ${token}`,
+                'Content-Type': 'application/json',
             }
-        );
+        });
 
-
-        console.log(`🔗 Linked test to Test Execution: ${testExecutionKey}`);
+        console.log(`✅ Linked test ${testIssueKey} to Test Execution ${testExecutionKey}`);
     } catch (error) {
         console.error(`❌ Failed to link test ${testIssueKey} to Test Execution ${testExecutionKey}:`, error.response?.data || error.message);
     }
 }
 
+
+
 // ============================
-// 📎 Link test to test set
+// 📎 Add test to test set
 // ============================
+async function addTestToTestSet(testKey, testSetKey) {
+    const token = await getXrayAuthToken();
+    const url = `${process.env.XRAY_BASE_URL}/api/v2/testset/${testSetKey}/test`;
+
+    const payload = {
+        add: [testKey]
+    };
+
+    try {
+        const response = await axios.post(url, payload, {
+            headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json'
+            }
+        });
+
+        console.log(`✅ Added test ${testKey} to Test Set ${testSetKey}`);
+    } catch (error) {
+        console.error(`❌ Failed to add test ${testKey} to Test Set ${testSetKey}:`, error.response?.data || error.message);
+    }
+}
+
 async function linkTestToTestSet(testKey, testSetKey) {
     const url = `${process.env.JIRA_BASE_URL}/rest/api/3/issueLink`;
 
@@ -520,26 +573,27 @@ async function findExistingBugForTest(testKey) {
 
 
 //verify keys exist in jira
+/*
 const verifyJiraIssueExists = async (issueKey, expectedType) => {
-    try {
-        const response = await axios.get(`${JIRA_BASE_URL}/rest/api/3/issue/${issueKey}`, {
-            headers: {
-                Authorization: authHeader,
-                Accept: 'application/json',
-            },
-        });
+  try {
+    const response = await axios.get(`${process.env.JIRA_BASE_URL}/rest/api/3/issue/${issueKey}`, {
+      headers: {
+        Authorization: authHeader,
+        Accept: 'application/json',
+      },
+    });
 
-        const actualType = response.data.fields.issuetype.name;
-        if (actualType !== expectedType) {
-            throw new Error(`Issue ${issueKey} is of type ${actualType}, expected ${expectedType}`);
-        }
-
-        return true;
-    } catch (err) {
-        console.error(`❌ Failed to verify issue ${issueKey}:`, err.response?.data || err.message);
-        return false;
+    const actualType = response.data.fields.issuetype.name;
+    if (actualType !== expectedType) {
+      throw new Error(`Issue ${issueKey} is of type ${actualType}, expected ${expectedType}`);
     }
-};
+
+    return true;
+  } catch (err) {
+    console.error(`❌ Failed to verify issue ${issueKey}:`, err.response?.data || err.message);
+    return false;
+  }
+};*/
 
 // ============================
 // 🔥 Main Sync Function
@@ -556,7 +610,7 @@ async function syncPostmanResults(resultsJsonPath) {
         // Read Postman results.json
         const resultsData = JSON.parse(fs.readFileSync(resultsJsonPath, 'utf-8'));
 
-        // Extract Test Execution key from collection name (e.g. "My API Tests [TE-01]")
+        // Extract Test Execution key from collection name (e.g. "My API Tests [IDC-1]")
         // Logging summary per test
         const collectionName = resultsData.run?.meta.collectionName || 'Unknown Collection';
         //const testExecutionMatch = collectionName.match(RE_JIRA_KEYS);
@@ -573,8 +627,8 @@ async function syncPostmanResults(resultsJsonPath) {
         console.log(`🧩 Test Execution Key: ${testExecutionKey}`);
         console.log(`🧩 Test Set Key: ${testSetKey}`);
 
-        await verifyJiraIssueExists(testExecutionKey, 'Test Execution');
-        await verifyJiraIssueExists(testSetKey, 'Test Set');
+        //await verifyJiraIssueExists(testExecutionKey, 'Test Execution');
+        //await verifyJiraIssueExists(testSetKey, 'Test Set');
 
         // const testExecutionKey = testExecutionMatch[1]; // e.g. "TE-01"
 
@@ -582,22 +636,15 @@ async function syncPostmanResults(resultsJsonPath) {
         for (const exec of resultsData.run.executions) {
             const requestName = exec.requestExecuted?.name || 'Unnamed Request';
             // Extract test case key from request name (e.g. "[API01-TS01-TE01]")
-            const testCaseMatch = requestName.match(RE_JIRA_KEYS);
+            const testCaseMatch = requestName.match(RE_TEST_CASE);
             if (!testCaseMatch) {
                 console.warn(`⚠️ Test case key not found in request name: ${requestName}`);
                 continue; // skip this test
             }
             const testCaseKeyCandidate = testCaseMatch[1]; // e.g. "API01-TS01-TE01"
 
-            // Extract Test Set key from test case key
-            const testSetMatch = testCaseKeyCandidate.match(RE_TEST_SET);
-            if (!testSetMatch) {
-                console.warn(`⚠️ Test Set key not found in test case key: ${testCaseKeyCandidate}`);
-                continue;
-            }
-
             // Compose test case name and description
-            const testCaseName = `[${testCaseKeyCandidate}] ${requestName}`;
+            const testCaseName = `${requestName}`;
             const description = `Test case from Postman request: ${requestName}\nLinked Jenkins Pipeline: ${JENKINS_PIPELINE_LINK}`;
 
             // Determine overall test status from all test assertions for this execution

@@ -286,7 +286,7 @@ async function linkTestToTestExecution(testIssueKey, testExecutionKey) {
 // ============================
 // 📎 Add test to test set
 // ============================
-async function addTestToTestSet(testKey, testSetKey) {
+/*async function addTestToTestSet(testKey, testSetKey) {
   const token = await getXrayAuthToken();
   const url = `${process.env.XRAY_BASE_URL}/api/v2/testset/${testSetKey}/test`;
 
@@ -308,7 +308,43 @@ async function addTestToTestSet(testKey, testSetKey) {
   } catch (error) {
     console.error(`❌ Failed to add test ${testKey} to Test Set ${testSetKey}:`, error.response?.data || error.message);
   }
+}*/
+async function addTestToTestSet(testKey, testSetKey) {
+  const token = await getXrayAuthToken();
+  const url = `${process.env.XRAY_BASE_URL}/api/v2/graphql`;
+  console.log("🔐 Got Xray Token:", token);
+  console.log('📡 Posting to:', url);
+
+  const query = `
+    mutation {
+      updateTestSet(
+        issueIdOrKey: "${testSetKey}"
+        add: {
+          testKeys: ["${testKey}"]
+        }
+      ) {
+        updatedTestSet {
+          issueId
+          testKeys
+        }
+      }
+    }
+  `;
+
+  try {
+    const response = await axios.post(url, { query }, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      }
+    });
+
+    console.log(`✅ Added test ${testKey} to Test Set ${testSetKey}`);
+  } catch (error) {
+    console.error(`❌ Failed to add test ${testKey} to Test Set ${testSetKey}:`, error.response?.data || error.message);
+  }
 }
+
 
 // ===============================
 // ⚙️ Jira Workflow Transitions Map

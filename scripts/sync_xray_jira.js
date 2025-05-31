@@ -310,40 +310,30 @@ async function linkTestToTestExecution(testIssueKey, testExecutionKey) {
   }
 }*/
 async function addTestToTestSet(testKey, testSetKey) {
-  const token = await getXrayAuthToken();
-  const url = `${process.env.XRAY_BASE_URL}/api/v2/graphql`;
+  const token = await getXrayAuthToken(); // make sure this returns a valid Xray Cloud token
+
+  const url = `${process.env.XRAY_BASE_URL}/rest/raven/1.0/api/testset/${testSetKey}/test`;
+
   console.log("🔐 Got Xray Token:", token);
   console.log('📡 Posting to:', url);
-
-  const query = `
-    mutation {
-      updateTestSet(
-        issueIdOrKey: "${testSetKey}"
-        add: {
-          testKeys: ["${testKey}"]
-        }
-      ) {
-        updatedTestSet {
-          issueId
-          testKeys
-        }
-      }
-    }
-  `;
+  const payload = {
+    add: [testKey]
+  };
 
   try {
-    const response = await axios.post(url, { query }, {
+    const response = await axios.post(url, payload, {
       headers: {
-        Authorization: `Bearer ${token}`,
-        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
       }
     });
 
-    console.log(`✅ Added test ${testKey} to Test Set ${testSetKey}`);
+    console.log(`✅ Successfully added test ${testKey} to Test Set ${testSetKey}`);
   } catch (error) {
     console.error(`❌ Failed to add test ${testKey} to Test Set ${testSetKey}:`, error.response?.data || error.message);
   }
 }
+
 
 
 // ===============================

@@ -626,6 +626,7 @@ async function syncPostmanResults(resultsJsonPath) {
       // Create or update the test case in Jira/Xray
       const testKey = await createOrUpdateXrayTestCase(testCaseKeyCandidate, testCaseName, description, LABELS, testSetKey, testExecutionKey, overallStatus);
 
+      /*
       // Handle bug management based on test status
       if (overallStatus === TEST_STATUS.FAILED) {
         // Create or get existing bug for this test
@@ -645,7 +646,7 @@ async function syncPostmanResults(resultsJsonPath) {
         if (bugKey) {
           await updateJiraBugStatus(bugKey, BUG_LIFECYCLE.CLOSED);
         }
-      }
+      }*/
 
       // Logging summary per test
       console.log(`Test case ${testKey} processed with status: ${overallStatus}`);

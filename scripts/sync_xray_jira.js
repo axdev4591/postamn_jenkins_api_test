@@ -118,8 +118,8 @@ async function submitTestResult(testKey, testExecutionKey, status = 'PASSED') {
   const resultPayload = {
     testExecutionKey,
     info: {
-      summary: `Nodejs script - Test run on ${now.toISOString().split('T')[0]}`,
-      description: `Postman-jenkins Automated test execution created on ${now.toISOString().split('T')[0]}`,
+      summary: `IdCluster Api automation - Test run on ${now.toISOString().split('T')[0]}`,
+      description: `This is an Automated test execution generated from Jenkins pipeline: Postman + nodejs script `,
       startDate,
       finishDate
     },
@@ -152,81 +152,6 @@ async function submitTestResult(testKey, testExecutionKey, status = 'PASSED') {
   }
 }
 
-
-
-// =================================================================
-// 🔁 Create/Update Xray Test Case and Link to TestSet/TestExecution
-// =================================================================
-async function createOrUpdateXrayTestCase(key, name, description, labels, testSetKey, testExecutionKey, overallStatus) {
-  try {
-    const searchUrl = buildApiUrl(process.env.JIRA_BASE_URL, '/rest/api/3/search');
-    const sanitizedSummary = `"${name.replace(/[\[\]"]+/g, '').replace(/"/g, '\\"')}"`;
-    const jqlQuery = `summary ~ ${sanitizedSummary} AND project = \"${process.env.JIRA_PROJECT_KEY}\" AND issuetype = Test`;
-
-    console.log(`🔍 Searching for existing test case with summary = ${sanitizedSummary}`);
-
-    const searchRes = await axios.get(searchUrl, {
-      auth: JIRA_AUTH,
-      params: {
-        jql: jqlQuery,
-        maxResults: 1
-      }
-    });
-
-    let testCaseKey;
-    if (searchRes.data.issues.length > 0) {
-      testCaseKey = searchRes.data.issues[0].key;
-      console.log(`↩️ Found existing test case: ${testCaseKey}`);
-    } else {
-      const createUrl = buildApiUrl(process.env.JIRA_BASE_URL, '/rest/api/3/issue');
-      const testCaseFieldId = await fetchJiraCustomFields(testCaseFieldName);
-      console.log(`📤 Creating new test case: ${name}`);
-      const createRes = await axios.post(createUrl, {
-        fields: {
-          project: { key: process.env.JIRA_PROJECT_KEY },
-          summary: name,
-          issuetype: { name: 'Test' },
-          description,
-          labels,
-          [testCaseFieldId]: { value: XRAY_TEST_TYPE }  // <-- Here is the custom test type field
-        }
-      }, { auth: JIRA_AUTH });
-
-      testCaseKey = createRes.data.key;
-      console.log(`✅ Created new test case: ${testCaseKey}`);
-    }
-
-    //issue IDs
-    const testId = await getIssueId(testCaseKey);
-    const testSetId = await getIssueId(testSetKey);
-    const testExecutionId = await getIssueId(testExecutionKey);
-
-    // Link to Test Set
-    console.log(`🔗 Add test: ${testId} to Test Set: ${testSetId}`);
-    await addTestToTestSet(testSetId, testId)
-
-    // Link to Test Execution
-    console.log(`🔗 Add test: ${testId}  to Test Execution: ${testExecutionId}`);
-    await addTestToTestExecution(testExecutionId, testId);
-
-    // Submit Test result Execution
-    console.log(`🔗 Update test status in test execution, test = ${testId}, Test Execution = ${testExecutionId}`);
-    const issueInfo = await axios.get(
-      `${process.env.JIRA_BASE_URL}/rest/api/3/issue/${testCaseKey}`,
-      { auth: JIRA_AUTH }
-    );
-
-    console.log(`✅ ${testCaseKey} issue type:`, issueInfo.data.fields.issuetype.name);
-
-    submitTestResult(testCaseKey, testExecutionKey, overallStatus);
-
-    return testCaseKey;
-
-  } catch (error) {
-    console.error(`❌ Failed to sync test case "${name}":`, error.response?.data || error.message);
-    throw error;
-  }
-}
 
 // ============================================
 // 📎 Retrieve All Custom Fields from Jira
@@ -555,6 +480,81 @@ async function findExistingBugForTest(testKey) {
 }
 
 
+
+
+// =================================================================
+// 🔁 Create/Update Xray Test Case and Link to TestSet/TestExecution
+// =================================================================
+async function createOrUpdateXrayTestCase(key, name, description, labels, testSetKey, testExecutionKey, overallStatus) {
+  try {
+    const searchUrl = buildApiUrl(process.env.JIRA_BASE_URL, '/rest/api/3/search');
+    const sanitizedSummary = `"${name.replace(/[\[\]"]+/g, '').replace(/"/g, '\\"')}"`;
+    const jqlQuery = `summary ~ ${sanitizedSummary} AND project = \"${process.env.JIRA_PROJECT_KEY}\" AND issuetype = Test`;
+
+    console.log(`🔍 Searching for existing test case with summary = ${sanitizedSummary}`);
+
+    const searchRes = await axios.get(searchUrl, {
+      auth: JIRA_AUTH,
+      params: {
+        jql: jqlQuery,
+        maxResults: 1
+      }
+    });
+
+    let testCaseKey;
+    if (searchRes.data.issues.length > 0) {
+      testCaseKey = searchRes.data.issues[0].key;
+      console.log(`↩️ Found existing test case: ${testCaseKey}`);
+    } else {
+      const createUrl = buildApiUrl(process.env.JIRA_BASE_URL, '/rest/api/3/issue');
+      const testCaseFieldId = await fetchJiraCustomFields(testCaseFieldName);
+      console.log(`📤 Creating new test case: ${name}`);
+      const createRes = await axios.post(createUrl, {
+        fields: {
+          project: { key: process.env.JIRA_PROJECT_KEY },
+          summary: name,
+          issuetype: { name: 'Test' },
+          description,
+          labels,
+          [testCaseFieldId]: { value: XRAY_TEST_TYPE }  // <-- Here is the custom test type field
+        }
+      }, { auth: JIRA_AUTH });
+
+      testCaseKey = createRes.data.key;
+      console.log(`✅ Created new test case: ${testCaseKey}`);
+    }
+
+    //issue IDs
+    const testId = await getIssueId(testCaseKey);
+    const testSetId = await getIssueId(testSetKey);
+    const testExecutionId = await getIssueId(testExecutionKey);
+
+    // Link to Test Set
+    console.log(`🔗 Add test: ${testId} to Test Set: ${testSetId}`);
+    await addTestToTestSet(testSetId, testId)
+
+    // Link to Test Execution
+    console.log(`🔗 Add test: ${testId}  to Test Execution: ${testExecutionId}`);
+    await addTestToTestExecution(testExecutionId, testId);
+
+    // Submit Test result Execution
+    console.log(`🔗 Update test status in test execution, test = ${testId}, Test Execution = ${testExecutionId}`);
+    const issueInfo = await axios.get(
+      `${process.env.JIRA_BASE_URL}/rest/api/3/issue/${testCaseKey}`,
+      { auth: JIRA_AUTH }
+    );
+
+    console.log(`✅ ${testCaseKey} issue type:`, issueInfo.data.fields.issuetype.name);
+
+    submitTestResult(testCaseKey, testExecutionKey, overallStatus);
+
+    return testCaseKey;
+
+  } catch (error) {
+    console.error(`❌ Failed to sync test case "${name}":`, error.response?.data || error.message);
+    throw error;
+  }
+}
 
 // ============================
 // 🔥 Main Sync Function

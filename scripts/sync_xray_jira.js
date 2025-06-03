@@ -606,7 +606,9 @@ async function syncPostmanResults(resultsJsonPath) {
 
       // Compose test case name and description
       const testCaseName = `${requestName}`;
-      const description = `Test case from Postman request: ${requestName}\nLinked Jenkins Pipeline: ${JENKINS_PIPELINE_LINK}`;
+      const descriptionText = `Test case from Postman request: ${requestName}\nLinked Jenkins Pipeline: ${JENKINS_PIPELINE_LINK}`;
+
+      const description = formatToADF(descriptionText);
 
       // Determine overall test status from all test assertions for this execution
       // Note: exec.test or exec.tests array depends on Postman result structure

@@ -357,6 +357,26 @@ async function fetchJiraCustomFields() {
   }
 })();
 
+// =================================
+// 📎 List all Jira Issue Link Types
+// ==================================
+async function listIssueLinkTypes() {
+  try {
+    const url = buildApiUrl(process.env.JIRA_BASE_URL, '/rest/api/3/issueLinkType');
+    const response = await axios.get(url, {
+      auth: JIRA_AUTH,
+      headers: {
+        'Content-Type': 'application/json',
+      }
+    });
+    console.log('🔗 Jira Issue Link Types:', response.data.issueLinkTypes);
+    return response.data.issueLinkTypes;
+  } catch (error) {
+    console.error('❌ Failed to fetch Jira issue link types:', error.response?.data || error.message);
+    throw error;
+  }
+}
+
 // ================================
 // 🔄 Update Jira Bug Status Function
 // ================================
@@ -379,26 +399,6 @@ async function updateJiraBugStatus(issueKey, status) {
     console.log(`✅ Bug ${issueKey} transitioned to ${status} (ID: ${transitionId})`);
   } catch (error) {
     console.error(`❌ Failed to update bug ${issueKey} status to ${status}:`, error.response?.data || error.message);
-  }
-}
-
-// =================================
-// 📎 List all Jira Issue Link Types
-// ==================================
-async function listIssueLinkTypes() {
-  try {
-    const url = buildApiUrl(process.env.JIRA_BASE_URL, '/rest/api/3/issueLinkType');
-    const response = await axios.get(url, {
-      auth: JIRA_AUTH,
-      headers: {
-        'Content-Type': 'application/json',
-      }
-    });
-    console.log('🔗 Jira Issue Link Types:', response.data.issueLinkTypes);
-    return response.data.issueLinkTypes;
-  } catch (error) {
-    console.error('❌ Failed to fetch Jira issue link types:', error.response?.data || error.message);
-    throw error;
   }
 }
 
@@ -432,7 +432,7 @@ async function linkBugToTestCase(bugKey, testKey) {
 // =============================================
 async function createOrUpdateBugForTest(testKey, testName, description) {
   const searchUrl = buildApiUrl(process.env.JIRA_BASE_URL, '/rest/api/3/search');
-  const jql = `project = ${process.env.JIRA_PROJECT_KEY} AND issuetype = ${process.env.BUG_ISSUE_TYPE} AND "Test Case" = ${testKey}`;
+  const jql = `project = ${process.env.JIRA_PROJECT_KEY} AND issuetype = ${process.env.BUG_ISSUE_TYPE} AND "Test" = ${testKey}`;
 
   const result = await axios.get(searchUrl, {
     auth: JIRA_AUTH,

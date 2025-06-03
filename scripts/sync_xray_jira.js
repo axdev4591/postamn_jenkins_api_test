@@ -406,11 +406,20 @@ async function updateJiraBugStatus(issueKey, status) {
 // 📎 Link bug to its test case
 // ===============================
 async function linkBugToTestCase(bugKey, testKey) {
+  const jql = `issue in linkedIssues("${testKey}", "is blocked by")`;
+  const result = await axios.get(searchUrl, {
+    auth: JIRA_AUTH,
+    params: { jql, maxResults: 1 }
+  });
+
+  if (result.data.issues.length > 0) {
+    return result.data.issues[0].key;
+  }
   const url = `${process.env.JIRA_BASE_URL}/rest/api/3/issueLink`;
   const payload = {
-    type: { name: "is blocked by" }, // Link type: testKey is blocked by bugKey
-    inwardIssue: { key: testKey },   // 🔁 This is the issue that IS BLOCKED
-    outwardIssue: { key: bugKey }    // 🔁 This is the issue that BLOCKS
+    type: { name: "Blocks" },     // ✅ This is the correct link type name
+    inwardIssue: { key: testKey },   // 🔁 testKey is blocked
+    outwardIssue: { key: bugKey }    // 🔁 bugKey is blocking
   };
 
   try {

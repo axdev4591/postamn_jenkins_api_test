@@ -200,11 +200,11 @@ async function createOrUpdateXrayTestCase(key, name, description, labels, testSe
 
     // Link to Test Set
     console.log(`🔗 Add test: ${testId} to Test Set: ${testSetId}`);
-    await addTestToTestSet(testId, testSetId)
+    await addTestToTestSet(testSetId, testId)
 
     // Link to Test Execution
     console.log(`🔗 Add test: ${testId}  to Test Execution: ${testExecutionId}`);
-    await addTestToTestExecution(testId, testExecutionId);
+    await addTestToTestExecution(testExecutionId, testId);
 
     // Submit Test result Execution
     console.log(`🔗 Update test status in test execution, test = ${testId}, Test Execution = ${testExecutionId}`);
@@ -296,27 +296,26 @@ async function getIssueId(issueKey) {
 
   return response.data.id;
 }
+
 /**
  * Add tests to test set using GraphQL mutation by keys
  * @param {string} testSetId - Test Set issue key like "TS-01"
  * @param {string[]} testId - Array of test issue keys like ["IDC-5", "IDC-6"]
  */
 async function addTestToTestSet(testSetId, testId) {
-  // Prepare GraphQL query string with keys
+
   const query = `
     mutation {
-      addTestsToTestSet(issueId: "${testSetId}", testIssueIds: [${testId}]) {
+      addTestsToTestSet(issueId: "${testSetId}", testIssueIds: ["${testId}"]) {
         addedTests
         warning
       }
     }
   `;
-  const payload = {
-    'query': query
-  };
+
+  const payload = { query };
   const token = await getXrayAuthToken();
   const url = `${process.env.XRAY_BASE_URL}/api/v2/graphql`;
-
 
   try {
     const response = await axios.post(url, payload, {
@@ -326,9 +325,9 @@ async function addTestToTestSet(testSetId, testId) {
       }
     });
 
-    console.log(`✅ Successfully added test ${testId} to Test Set ${testSetId}`);
+    console.log(`✅ Successfully added test(s) ${testId} to Test Set ${testSetId}`);
   } catch (error) {
-    console.error(`❌ Failed to add test ${testId} to Test Set ${testSetId}:`, error.response?.data || error.message);
+    console.error(`❌ Failed to add test(s) ${testId} to Test Set ${testSetId}:`, error.response?.data || error.message);
   }
 }
 
@@ -338,21 +337,19 @@ async function addTestToTestSet(testSetId, testId) {
  * @param {string[]} testId - Array of test issue keys like ["IDC-5", "IDC-6"]
  */
 async function addTestToTestExecution(testExecId, testId) {
-  // Prepare GraphQL query string with keys
+
   const query = `
     mutation {
-      addTestsToTestExecution(issueId: "${testExecId}", testIssueIds: [${testId}]) {
+      addTestsToTestExecution(issueId: "${testExecId}", testIssueIds: ["${testId}"]) {
         addedTests
         warning
       }
     }
   `;
-  const payload = {
-    'query': query
-  };
+
+  const payload = { query };
   const token = await getXrayAuthToken();
   const url = `${process.env.XRAY_BASE_URL}/api/v2/graphql`;
-
 
   try {
     const response = await axios.post(url, payload, {
@@ -362,11 +359,12 @@ async function addTestToTestExecution(testExecId, testId) {
       }
     });
 
-    console.log(`✅ Successfully added test ${testId} to Test Execution ${testExecId}`);
+    console.log(`✅ Successfully added test(s) ${testId} to Test Execution ${testExecId}`);
   } catch (error) {
-    console.error(`❌ Failed to add test ${testId} to Test Execution ${testExecId}:`, error.response?.data || error.message);
+    console.error(`❌ Failed to add test(s) ${testId} to Test Execution ${testExecId}:`, error.response?.data || error.message);
   }
 }
+
 
 
 // ===============================

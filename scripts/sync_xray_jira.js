@@ -194,9 +194,9 @@ async function createOrUpdateXrayTestCase(key, name, description, labels, testSe
     }
 
     //issue IDs
-    const testId = getIssueId(testCaseKey);
-    const testSetId = getIssueId(testSetKey);
-    const testExecutionId = getIssueId(testExecutionKey);
+    const testId = await getIssueId(testCaseKey);
+    const testSetId = await getIssueId(testSetKey);
+    const testExecutionId = await getIssueId(testExecutionKey);
 
     // Link to Test Set
     console.log(`🔗 Add test: ${testId} to Test Set: ${testSetId}`);
@@ -290,12 +290,11 @@ async function getIssueId(issueKey) {
   });
 
 
-  if (!response.ok) {
+  if (response.status !== 200 || !response.data || !response.data.id) {
     throw new Error(`Failed to get issue ID for ${issueKey}: ${response.status} ${response.statusText}`);
   }
 
-  const data = await response.json();
-  return data.id;  // This is the internal issue ID (string)
+  return response.data.id;
 }
 /**
  * Add tests to test set using GraphQL mutation by keys

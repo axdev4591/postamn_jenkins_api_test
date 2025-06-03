@@ -137,18 +137,26 @@ async function submitTestResult(testKey, testExecutionKey, status = 'PASSED') {
     ]
   };
 
-  const response = await axios.post(
-    `${process.env.XRAY_BASE_URL}/api/v2/import/execution`,
-    resultPayload,
-    {
-      headers: {
-        Authorization: `Bearer ${xrayToken}`,
-        'Content-Type': 'application/json'
-      }
-    }
-  );
+  console.log("➡️ Submitting test result:", JSON.stringify(resultPayload, null, 2));
+  console.log("➡️ Using token:", xrayToken.slice(0, 10) + '...');  // Show start of token only
 
-  console.log('Test result submitted:', response.data);
+
+  try {
+    const response = await axios.post(
+      `${process.env.XRAY_BASE_URL}/api/v2/import/execution`,
+      resultPayload,
+      {
+        headers: {
+          Authorization: `Bearer ${xrayToken}`,
+          'Content-Type': 'application/json'
+        }
+      }
+    );
+    console.log('✅ Test result submitted:', response.data);
+  } catch (err) {
+    console.error('❌ Error submitting test result:', err.response?.data || err.message);
+  }
+
 }
 
 

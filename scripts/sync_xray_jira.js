@@ -408,9 +408,9 @@ async function updateJiraBugStatus(issueKey, status) {
 async function linkBugToTestCase(bugKey, testKey) {
   const url = `${process.env.JIRA_BASE_URL}/rest/api/3/issueLink`;
   const payload = {
-    type: { name: "Relates" }, // You can use other types like "Blocks", "Tests", etc.
-    inwardIssue: { key: bugKey },
-    outwardIssue: { key: testKey }
+    type: { name: "is blocked by" }, // Link type: testKey is blocked by bugKey
+    inwardIssue: { key: testKey },   // 🔁 This is the issue that IS BLOCKED
+    outwardIssue: { key: bugKey }    // 🔁 This is the issue that BLOCKS
   };
 
   try {
@@ -432,8 +432,8 @@ async function linkBugToTestCase(bugKey, testKey) {
 // =============================================
 async function createOrUpdateBugForTest(testKey, testName, description) {
   const searchUrl = buildApiUrl(process.env.JIRA_BASE_URL, '/rest/api/3/search');
-  const jql = `project = ${process.env.JIRA_PROJECT_KEY} AND issuetype = ${process.env.BUG_ISSUE_TYPE} AND "Test" = ${testKey}`;
-
+  //const jql = `project = ${process.env.JIRA_PROJECT_KEY} AND issuetype = ${process.env.BUG_ISSUE_TYPE} AND "Test" = ${testKey}`;
+  const jql = `issue in linkedIssues("${testKey}", "is blocked by")`;
   const result = await axios.get(searchUrl, {
     auth: JIRA_AUTH,
     params: { jql, maxResults: 1 }
@@ -641,21 +641,21 @@ async function syncPostmanResults(resultsJsonPath) {
         // Create or get existing bug for this test
         let bugKey = await findExistingBugForTest(testKey);
         console.log(`Bug ${bugKey} linked to test : ${testKey}`);
-        /* if (!bugKey) {
-           // Bug description can include failure info + Jenkins link
-           const bugDescription = `Failure detected for test case ${testKey}.\n\n${description}`;
-           bugKey = await createOrUpdateBugForTest(testKey, testCaseName, bugDescription);
-         }
-         // Link bug to test case if not linked yet
-         await linkBugToTestCase(bugKey, testKey);
-         // Update bug status to OPEN or REOPENED depending on current status
-         await updateJiraBugStatus(bugKey, BUG_LIFECYCLE.REOPENED);
-       } else if (overallStatus === TEST_STATUS.PASSED) {
-         // Check if bug exists, then close it if still open
-         const bugKey = await findExistingBugForTest(testKey);
-         if (bugKey) {
-           await updateJiraBugStatus(bugKey, BUG_LIFECYCLE.CLOSED);
-         }*/
+        if (!bugKey) {
+          // Bug description can include failure info + Jenkins link
+          const bugDescription = `Failure detected for test case ${testKey}.\n\n${description}`;
+          bugKey = await createOrUpdateBugForTest(testKey, testCaseName, bugDescription);
+        }
+        // Link bug to test case if not linked yet
+        await linkBugToTestCase(bugKey, testKey);
+        // Update bug status to OPEN or REOPENED depending on current status
+        await updateJiraBugStatus(bugKey, BUG_LIFECYCLE.REOPENED);
+      } else if (overallStatus === TEST_STATUS.PASSED) {
+        // Check if bug exists, then close it if still open
+        const bugKey = await findExistingBugForTest(testKey);
+        if (bugKey) {
+          await updateJiraBugStatus(bugKey, BUG_LIFECYCLE.CLOSED);
+        }
       }
 
       // Logging summary per test

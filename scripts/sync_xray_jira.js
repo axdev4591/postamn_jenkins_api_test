@@ -155,7 +155,7 @@ async function submitTestResult(testKey, testExecutionKey, status = 'PASSED') {
 // =================================================================
 // 🔁 Create/Update Xray Test Case and Link to TestSet/TestExecution
 // =================================================================
-async function createOrUpdateXrayTestCase(key, name, description, labels, testSetKey, testExecutionKey) {
+async function createOrUpdateXrayTestCase(key, name, description, labels, testSetKey, testExecutionKey, overallStatus) {
   try {
     const searchUrl = buildApiUrl(process.env.JIRA_BASE_URL, '/rest/api/3/search');
     const sanitizedSummary = `"${name.replace(/[\[\]"]+/g, '').replace(/"/g, '\\"')}"`;

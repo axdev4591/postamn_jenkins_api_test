@@ -177,15 +177,16 @@ async function createOrUpdateXrayTestCase(key, name, description, labels, testSe
       console.log(`↩️ Found existing test case: ${testCaseKey}`);
     } else {
       const createUrl = buildApiUrl(process.env.JIRA_BASE_URL, '/rest/api/3/issue');
+      const testCaseFieldId = await fetchJiraCustomFields(testCaseFieldName);
       console.log(`📤 Creating new test case: ${name}`);
       const createRes = await axios.post(createUrl, {
         fields: {
           project: { key: process.env.JIRA_PROJECT_KEY },
           summary: name,
           issuetype: { name: 'Test' },
-          //description,
-          //labels,
-          // [XRAY_TEST_TYPE_FIELD_ID]: { value: XRAY_TEST_TYPE }  // <-- Here is the custom test type field
+          description,
+          labels,
+          [testCaseFieldId]: { value: XRAY_TEST_TYPE }  // <-- Here is the custom test type field
         }
       }, { auth: JIRA_AUTH });
 
@@ -221,25 +222,11 @@ async function createOrUpdateXrayTestCase(key, name, description, labels, testSe
 // ============================================
 // 📎 Retrieve All Custom Fields from Jira
 // ============================================
-async function fetchJiraCustomFields() {
-  try {
-    const url = buildApiUrl(process.env.JIRA_BASE_URL, '/rest/api/3/field');
-    const response = await axios.get(url, {
-      auth: JIRA_AUTH,
-      headers: { 'Content-Type': 'application/json' }
-    });
-
-    const customFields = response.data.filter(field => field.custom);
-    console.log('📋 Retrieved custom fields:');
-    for (const field of customFields) {
-      console.log(`- ${field.name} (ID: ${field.id})`);
-    }
-
-    return customFields;
-  } catch (error) {
-    console.error('❌ Failed to fetch custom fields:', error.response?.data || error.message);
-    throw error;
-  }
+async function fetchJiraCustomFields(fieldName) {
+  const url = `${process.env.JIRA_BASE_URL}/rest/api/3/field`;
+  const res = await axios.get(url, { auth: JIRA_AUTH });
+  const field = res.data.find(f => f.name === fieldName);
+  return field ? field.id : null;
 }
 
 // Example usage:

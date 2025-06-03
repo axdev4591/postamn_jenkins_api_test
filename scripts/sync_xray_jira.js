@@ -113,6 +113,47 @@ async function getXrayAuthToken() {
 
 module.exports = { getXrayAuthToken };
 
+/**
+ * Update test result in a test execution
+ * @param {string} testExecutionKey - Key like "IDC-7"
+ * @param {Array} results - Array of test results: { testKey, status, comment? }
+ */
+async function submitTestResult(testKey, testExecutionKey, status = 'PASSED') {
+  const xrayToken = await authenticateXray();
+  const today = new Date().toISOString().split('T')[0]; // Format: YYYY-MM-DD
+
+  const resultPayload = {
+    testExecutionKey,
+    info: {
+      summary: `Nodejs script - Test run on ${today}`,
+      description: `Postman-jenkins Automated test execution created on ${today}`,
+      startDate: today,
+      finishDate: today
+    },
+    tests: [
+      {
+        testKey,
+        status,
+        comment: `Everything: ${status}`
+      }
+    ]
+  };
+
+  const response = await axios.post(
+    `${process.env.XRAY_BASE_URL}/api/v2/import/execution`,
+    resultPayload,
+    {
+      headers: {
+        Authorization: `Bearer ${xrayToken}`,
+        'Content-Type': 'application/json'
+      }
+    }
+  );
+
+  console.log('Test result submitted:', response.data);
+}
+
+
 // =================================================================
 // 🔁 Create/Update Xray Test Case and Link to TestSet/TestExecution
 // =================================================================
@@ -154,13 +195,22 @@ async function createOrUpdateXrayTestCase(key, name, description, labels, testSe
       console.log(`✅ Created new test case: ${testCaseKey}`);
     }
 
+    //issue IDs
+    const testId = getIssueId(testCaseKey);
+    const testSetId = getIssueId(testSetKey);
+    const testExecutionId = getIssueId(testExecutionKey);
+
     // Link to Test Set
-    console.log(`🔗 Add test to Test Set: ${testSetKey}`);
-    await addTestToTestSet(testCaseKey, testSetKey)
-    //await linkTestToTestSet(testCaseKey, testSetKey);
+    console.log(`🔗 Add test: ${testId} to Test Set: ${testSetId}`);
+    await addTestToTestSet(testId, testSetId)
 
     // Link to Test Execution
-    await linkTestToTestExecution(testCaseKey, testExecutionKey);
+    console.log(`🔗 Add test: ${testId}  to Test Execution: ${testExecutionId}`);
+    await addTestToTestExecution(testId, testExecutionId);
+
+    // Submit Test result Execution
+    console.log(`🔗 Update test status in test execution, test = ${testId}, Test Execution = ${testExecutionId}`);
+    submitTestResult(testCaseKey, testExecutionKey, overallStatus);
 
     return testCaseKey;
 
@@ -226,75 +276,50 @@ function formatToADF(text) {
   };
 }
 
-// ============================
-// 📎 Link test to test execution
-// ============================
-/*
-async function linkTestToTestExecution(testIssueKey, testExecutionKey) {
-  try {
-    const token = await getXrayAuthToken();
 
-    const url = `${process.env.JIRA_BASE_URL}/rest/raven/1.0/api/testexec/${testExecutionKey}/test`;
-    console.log("👉 Linking test to Test Execution via:", url);
+/**
+ * Get issue internal ID from Jira issue key using Jira REST API
+ * @param {string} issueKey - Jira issue key like "IDC-5"
+ * @returns {Promise<string>} - Returns internal numeric issue ID
+ */
+async function getIssueId(issueKey) {
 
-    await axios.post(url, {
-      //  testExecutionKey,
-      "add": [testIssueKey]
-    }, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-        'Content-Type': 'application/json'
-      }
-    });
+  const url = `${JIRA_BASE_URL}/rest/api/3/issue/${issueKey}`;
 
-    console.log(`🔗 Linked test ${testIssueKey} to Test Execution ${testExecutionKey}`);
-  } catch (error) {
-    console.error(`❌ Failed to link test ${testIssueKey} to Test Execution ${testExecutionKey}:`, error.response?.data || error.message);
+  const response = await axios.get(url, {
+    auth: JIRA_AUTH,
+    headers: { 'Content-Type': 'application/json' }
+  });
+
+
+  if (!response.ok) {
+    throw new Error(`Failed to get issue ID for ${issueKey}: ${response.status} ${response.statusText}`);
   }
-}*/
-async function linkTestToTestExecution(testIssueKey, testExecutionKey) {
-  try {
-    const token = await getXrayAuthToken();
 
-    const url = `${process.env.XRAY_BASE_URL}/api/v2/graphql`;
-
-    const query = {
-      query: `
-        mutation {
-          addTestsToTestExecution(issueId: "${testExecutionKey}", testIssueIds: ["${testIssueKey}"]) {
-            addedTests
-          }
-        }
-      `
-    };
-
-    const response = await axios.post(url, query, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-        'Content-Type': 'application/json',
-      }
-    });
-
-    console.log(`✅ Linked test ${testIssueKey} to Test Execution ${testExecutionKey}`);
-  } catch (error) {
-    console.error(`❌ Failed to link test ${testIssueKey} to Test Execution ${testExecutionKey}:`, error.response?.data || error.message);
-  }
+  const data = await response.json();
+  return data.id;  // This is the internal issue ID (string)
 }
-
-
-
-// ============================
-// 📎 Add test to test set
-// ============================
-/*async function addTestToTestSet(testKey, testSetKey) {
+/**
+ * Add tests to test set using GraphQL mutation by keys
+ * @param {string} testSetId - Test Set issue key like "TS-01"
+ * @param {string[]} testId - Array of test issue keys like ["IDC-5", "IDC-6"]
+ */
+async function addTestToTestSet(testSetId, testId) {
+  // Prepare GraphQL query string with keys
+  const query = `
+    mutation {
+      addTestsToTestSet(issueId: "${testSetId}", testIssueIds: [${testId}]) {
+        addedTests
+        warning
+      }
+    }
+  `;
+  const payload = {
+    'query': query
+  };
   const token = await getXrayAuthToken();
-  const url = `${process.env.XRAY_BASE_URL}/api/v2/testset/${testSetKey}/test`;
+  const url = `${process.env.XRAY_BASE_URL}/api/v2/graphql`;
 
-  console.log("🔐 Got Xray Token:", token);
-  console.log('📡 Posting to:', url);
-  const payload = {
-    add: [testKey]
-  };
 
   try {
     const response = await axios.post(url, payload, {
@@ -304,36 +329,47 @@ async function linkTestToTestExecution(testIssueKey, testExecutionKey) {
       }
     });
 
-    console.log(`✅ Added test ${testKey} to Test Set ${testSetKey}`);
+    console.log(`✅ Successfully added test ${testId} to Test Set ${testSetId}`);
   } catch (error) {
-    console.error(`❌ Failed to add test ${testKey} to Test Set ${testSetKey}:`, error.response?.data || error.message);
-  }
-}*/
-async function addTestToTestSet(testKey, testSetKey) {
-  const token = await getXrayAuthToken(); // make sure this returns a valid Xray Cloud token
-
-  const url = `${process.env.XRAY_BASE_URL}/api/v2/testset/test`;
-
-  const payload = {
-    testSetKey: testSetKey,
-    add: [testKey]
-  };
-  console.log("🔐 Got Xray Token:", token);
-  console.log('📡 Posting to:', url);
-  try {
-    const response = await axios.post(url, payload, {
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json'
-      }
-    });
-
-    console.log(`✅ Successfully added test ${testKey} to Test Set ${testSetKey}`);
-  } catch (error) {
-    console.error(`❌ Failed to add test ${testKey} to Test Set ${testSetKey}:`, error.response?.data || error.message);
+    console.error(`❌ Failed to add test ${testId} to Test Set ${testSetId}:`, error.response?.data || error.message);
   }
 }
 
+/**
+ * Add tests to test set using GraphQL mutation by keys
+ * @param {string} testExecId - Test Set issue key like "TS-01"
+ * @param {string[]} testId - Array of test issue keys like ["IDC-5", "IDC-6"]
+ */
+async function addTestToTestExecution(testExecId, testId) {
+  // Prepare GraphQL query string with keys
+  const query = `
+    mutation {
+      addTestsToTestExecution(issueId: "${testExecId}", testIssueIds: [${testId}]) {
+        addedTests
+        warning
+      }
+    }
+  `;
+  const payload = {
+    'query': query
+  };
+  const token = await getXrayAuthToken();
+  const url = `${process.env.XRAY_BASE_URL}/api/v2/graphql`;
+
+
+  try {
+    const response = await axios.post(url, payload, {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      }
+    });
+
+    console.log(`✅ Successfully added test ${testId} to Test Execution ${testExecId}`);
+  } catch (error) {
+    console.error(`❌ Failed to add test ${testId} to Test Execution ${testExecId}:`, error.response?.data || error.message);
+  }
+}
 
 
 // ===============================
@@ -507,46 +543,6 @@ async function createOrUpdateBugForTest(testKey, testName, description) {
   return res.data.key;
 }
 
-async function findTestSetBySummary(summary) {
-  const jql = `project = ${JIRA_PROJECT_KEY} AND issuetype = "Test Set" AND summary ~ "${summary}"`;
-  const url = `${JIRA_BASE_URL}/rest/api/2/search?jql=${encodeURIComponent(jql)}`;
-
-  const response = await axios.get(url, {
-    headers: {
-      Authorization: `Basic ${Buffer.from(`${JIRA_USER}:${JIRA_API_TOKEN}`).toString('base64')}`,
-      Accept: 'application/json',
-    },
-  });
-
-  if (response.data.issues.length > 0) {
-    return response.data.issues[0];  // Return the first matched Test Set issue
-  }
-  return null;
-}
-
-async function createTestSet(summary) {
-  const url = `${JIRA_BASE_URL}/rest/api/2/issue`;
-  const payload = {
-    fields: {
-      project: {
-        key: JIRA_PROJECT_KEY,
-      },
-      summary: summary,
-      issuetype: {
-        name: "Test Set",
-      },
-    },
-  };
-
-  const response = await axios.post(url, payload, {
-    headers: {
-      Authorization: `Basic ${Buffer.from(`${JIRA_USER}:${JIRA_API_TOKEN}`).toString('base64')}`,
-      'Content-Type': 'application/json',
-    },
-  });
-
-  return response.data; // Contains new issue key and id
-}
 
 // =============================================
 // 📎 Find existing bug for a specific test
@@ -568,28 +564,6 @@ async function findExistingBugForTest(testKey) {
 }
 
 
-//verify keys exist in jira
-/*
-const verifyJiraIssueExists = async (issueKey, expectedType) => {
-  try {
-    const response = await axios.get(`${process.env.JIRA_BASE_URL}/rest/api/3/issue/${issueKey}`, {
-      headers: {
-        Authorization: authHeader,
-        Accept: 'application/json',
-      },
-    });
-
-    const actualType = response.data.fields.issuetype.name;
-    if (actualType !== expectedType) {
-      throw new Error(`Issue ${issueKey} is of type ${actualType}, expected ${expectedType}`);
-    }
-
-    return true;
-  } catch (err) {
-    console.error(`❌ Failed to verify issue ${issueKey}:`, err.response?.data || err.message);
-    return false;
-  }
-};*/
 
 // ============================
 // 🔥 Main Sync Function
@@ -656,7 +630,7 @@ async function syncPostmanResults(resultsJsonPath) {
       }
 
       // Create or update the test case in Jira/Xray
-      const testKey = await createOrUpdateXrayTestCase(testCaseKeyCandidate, testCaseName, description, LABELS, testSetKey, testExecutionKey);
+      const testKey = await createOrUpdateXrayTestCase(testCaseKeyCandidate, testCaseName, description, LABELS, testSetKey, testExecutionKey, overallStatus);
 
       // Handle bug management based on test status
       if (overallStatus === TEST_STATUS.FAILED) {

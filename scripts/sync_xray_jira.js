@@ -27,8 +27,6 @@ const XRAY_TEST_TYPE_FIELD_ID = "customfield_XXXXX"; // Replace with your actual
 // =====================
 // 🔍 Regex Definitions
 // =====================
-const RE_TEST_EXECUTION = /\[(IDC-\d+)\]/;
-const RE_TEST_SET = /\[(IDC-\d+)\]/;
 const RE_TEST_CASE = /\[(API\d+-IDC\d+-IDC\d+)\]/;
 // Matches multiple Jira keys like [IDC-7][IDC-6] Title
 const RE_JIRA_KEYS = /\[(\w+-\d+)\]\[(\w+-\d+)\]/;
@@ -284,7 +282,7 @@ function formatToADF(text) {
  */
 async function getIssueId(issueKey) {
 
-  const url = `${JIRA_BASE_URL}/rest/api/3/issue/${issueKey}`;
+  const url = `${process.env.JIRA_BASE_URL}/rest/api/3/issue/${issueKey}`;
 
   const response = await axios.get(url, {
     auth: JIRA_AUTH,

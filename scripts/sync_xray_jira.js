@@ -613,16 +613,17 @@ async function syncPostmanResults(resultsJsonPath) {
       const description = `Test case from Postman request: ${requestName}\nLinked Jenkins Pipeline: ${JENKINS_PIPELINE_LINK}`;
 
       // Determine overall test status from all test assertions for this execution
-      // Note: exec.assertions or exec.tests array depends on Postman result structure
-      // Here we check exec.assertions or fallback to exec.tests with 'assertions' array
-      const testAssertions = exec.tests || (exec.tests && exec.tests.length ? exec.tests : []);
-      // If no assertions, mark skipped
+      // Note: exec.test or exec.tests array depends on Postman result structure
+      // Here we check exec.tests or fallback to exec.tests with 'assertions' array
+      const testAssertions = Array.isArray(exec.tests) ? exec.tests : [];
+
       let overallStatus = TEST_STATUS.SKIPPED;
+
       if (testAssertions.length > 0) {
-        // If any assertion failed → FAILED, else PASSED
-        const anyFailed = testAssertions.some(a => a.error !== undefined && a.error !== null);
+        const anyFailed = testAssertions.some(a => a.status !== 'passed');
         overallStatus = anyFailed ? TEST_STATUS.FAILED : TEST_STATUS.PASSED;
       }
+
 
       // Create or update the test case in Jira/Xray
       const testKey = await createOrUpdateXrayTestCase(testCaseKeyCandidate, testCaseName, description, LABELS, testSetKey, testExecutionKey, overallStatus);

@@ -650,7 +650,6 @@ module.exports = {
   XRAY_TEST_TYPE,
   XRAY_TEST_TYPE_FIELD_ID,
   JENKINS_PIPELINE_LINK,
-  authenticateXray,
   getXrayAuthToken,
   createOrUpdateXrayTestCase,
   addTestToTestExecution,

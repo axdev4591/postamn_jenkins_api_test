@@ -507,7 +507,7 @@ async function createOrUpdateXrayTestCase(key, name, description, labels, testSe
       console.log(`↩️ Found existing test case: ${testCaseKey}`);
     } else {
       const createUrl = buildApiUrl(process.env.JIRA_BASE_URL, '/rest/api/3/issue');
-      const testCaseFieldId = await fetchJiraCustomFields(testCaseFieldName);
+      //const testCaseFieldId = await fetchJiraCustomFields(testCaseFieldName);
       console.log(`📤 Creating new test case: ${name}`);
       const createRes = await axios.post(createUrl, {
         fields: {

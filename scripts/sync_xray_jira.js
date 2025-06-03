@@ -406,6 +406,7 @@ async function updateJiraBugStatus(issueKey, status) {
 // 📎 Link bug to its test case
 // ===============================
 async function linkBugToTestCase(bugKey, testKey) {
+  const searchUrl = buildApiUrl(process.env.JIRA_BASE_URL, '/rest/api/3/search');
   const jql = `issue in linkedIssues("${testKey}", "is blocked by")`;
   const result = await axios.get(searchUrl, {
     auth: JIRA_AUTH,

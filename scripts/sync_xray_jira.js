@@ -207,6 +207,13 @@ async function createOrUpdateXrayTestCase(key, name, description, labels, testSe
 
     // Submit Test result Execution
     console.log(`🔗 Update test status in test execution, test = ${testId}, Test Execution = ${testExecutionId}`);
+    const issueInfo = await axios.get(
+      `${process.env.JIRA_BASE_URL}/rest/api/3/issue/${testCaseKey}`,
+      { auth: JIRA_AUTH }
+    );
+
+    console.log(`✅ ${testCaseKey} issue type:`, issueInfo.data.fields.issuetype.name);
+
     submitTestResult(testCaseKey, testExecutionKey, overallStatus);
 
     return testCaseKey;
@@ -653,6 +660,7 @@ module.exports = {
   getXrayAuthToken,
   createOrUpdateXrayTestCase,
   addTestToTestExecution,
+  submitTestResult,
   getIssueId,
   addTestToTestSet,
   updateJiraBugStatus,

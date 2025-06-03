@@ -106,17 +106,22 @@ module.exports = { getXrayAuthToken };
  * @param {string} testExecutionKey - Key like "IDC-7"
  * @param {Array} results - Array of test results: { testKey, status, comment? }
  */
+
 async function submitTestResult(testKey, testExecutionKey, status = 'PASSED') {
   const xrayToken = await getXrayAuthToken();
-  const today = new Date().toISOString().split('T')[0]; // Format: YYYY-MM-DD
+
+  // Use ISO 8601 full datetime format (e.g. 2025-06-03T10:00:00.000Z)
+  const now = new Date();
+  const startDate = new Date(now.getTime() - 5 * 60 * 1000).toISOString(); // 5 minutes before now
+  const finishDate = now.toISOString(); // now
 
   const resultPayload = {
     testExecutionKey,
     info: {
-      summary: `Nodejs script - Test run on ${today}`,
-      description: `Postman-jenkins Automated test execution created on ${today}`,
-      startDate: today,
-      finishDate: today
+      summary: `Nodejs script - Test run on ${now.toISOString().split('T')[0]}`,
+      description: `Postman-jenkins Automated test execution created on ${now.toISOString().split('T')[0]}`,
+      startDate,
+      finishDate
     },
     tests: [
       {
@@ -128,8 +133,7 @@ async function submitTestResult(testKey, testExecutionKey, status = 'PASSED') {
   };
 
   console.log("➡️ Submitting test result:", JSON.stringify(resultPayload, null, 2));
-  console.log("➡️ Using token:", xrayToken.slice(0, 10) + '...');  // Show start of token only
-
+  console.log("➡️ Using token:", xrayToken.slice(0, 10) + '...');
 
   try {
     const response = await axios.post(
@@ -142,12 +146,12 @@ async function submitTestResult(testKey, testExecutionKey, status = 'PASSED') {
         }
       }
     );
-    console.log('✅ Test result submitted:', response.data);
-  } catch (err) {
-    console.error('❌ Error submitting test result:', err.response?.data || err.message);
+    console.log("✅ Test result submitted:", response.data);
+  } catch (error) {
+    console.error("❌ Error submitting test result:", error.response?.data || error.message);
   }
-
 }
+
 
 
 // =================================================================

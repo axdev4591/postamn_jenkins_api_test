@@ -88,16 +88,6 @@ function extractTestScripts(event) {
 // ============================
 // 🔐 Authenticate to Xray API
 // ============================
-async function authenticateXray() {
-  const authUrl = buildApiUrl(process.env.XRAY_BASE_URL, '/api/v2/authenticate');
-  const res = await axios.post(authUrl, {
-    client_id: process.env.XRAY_CLIENT_ID,
-    client_secret: process.env.XRAY_CLIENT_SECRET
-  });
-  XRAY_TOKEN = res.data;
-}
-
-
 async function getXrayAuthToken() {
   const res = await axios.post(`${process.env.XRAY_BASE_URL}/api/v2/authenticate`, {
     client_id: process.env.XRAY_CLIENT_ID,
@@ -117,7 +107,7 @@ module.exports = { getXrayAuthToken };
  * @param {Array} results - Array of test results: { testKey, status, comment? }
  */
 async function submitTestResult(testKey, testExecutionKey, status = 'PASSED') {
-  const xrayToken = await authenticateXray();
+  const xrayToken = await getXrayAuthToken();
   const today = new Date().toISOString().split('T')[0]; // Format: YYYY-MM-DD
 
   const resultPayload = {

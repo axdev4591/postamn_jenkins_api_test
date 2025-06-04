@@ -65,3 +65,8 @@ Example request name: `[API01-TS01-TE01] Get videogames list`
 
    ```bash
    npm install axios
+
+
+# get import workflow transition:
+{{JIRA_BASEURL}}/rest/api/3/issue/IDC-1/transitions
+

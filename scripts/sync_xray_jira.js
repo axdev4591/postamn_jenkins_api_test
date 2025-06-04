@@ -19,7 +19,7 @@ require('dotenv').config();
 // 🔁 Constants and Enums
 // ======================
 const TEST_STATUS = { PASSED: 'PASSED', FAILED: 'FAILED', SKIPPED: 'SKIPPED' };
-const BUG_LIFECYCLE = { CREATED: 'OPEN', REOPENED: 'REOPENED', CLOSED: 'CLOSED' };
+const BUG_LIFECYCLE = { CREATED: 'To Do', REOPENED: 'In Progress', CLOSED: 'Done' };
 const LABELS = ['jenkins', 'postman', 'automation', 'TNR'];
 const XRAY_TEST_TYPE = "Jenkins_postman";
 const XRAY_TEST_TYPE_FIELD_ID = "customfield_XXXXX"; // Replace with your actual custom field ID

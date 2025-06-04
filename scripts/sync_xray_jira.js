@@ -19,10 +19,10 @@ require('dotenv').config();
 // 🔁 Constants and Enums
 // ======================
 const TEST_STATUS = { PASSED: 'PASSED', FAILED: 'FAILED', SKIPPED: 'SKIPPED' };
-const BUG_LIFECYCLE = { CREATED: 'To Do', REOPENED: 'In Progress', CLOSED: 'Done' };
 const LABELS = ['jenkins', 'postman', 'automation', 'TNR'];
 const XRAY_TEST_TYPE = "Jenkins_postman";
 const XRAY_TEST_TYPE_FIELD_ID = "customfield_XXXXX"; // Replace with your actual custom field ID
+const BUG_LIFECYCLE = { CREATED: 'To Do', REOPENED: 'In Progress', CLOSED: 'Done' };
 const STATUS_KEYWORDS = {
   CREATED: ['to do', 'open'],
   REOPENED: ['reopened', 'in progress'],
@@ -395,27 +395,42 @@ async function listIssueLinkTypes() {
 // ================================
 // 🔄 Update Jira Bug Status Function
 // ================================
-async function updateJiraBugStatus(issueKey, status) {
-  if (!workflowMap[status]) {
-    throw new Error(`No workflow transition ID found for status: ${status}`);
+function getLifecycleKeyFromStatus(statusLabel) {
+  for (const [key, label] of Object.entries(BUG_LIFECYCLE)) {
+    if (label.toLowerCase() === statusLabel.toLowerCase()) {
+      return key;
+    }
   }
-  const transitionId = workflowMap[status];
+  return null;
+}
+
+async function updateJiraBugStatus(issueKey, statusLabel) {
+  const lifecycleKey = getLifecycleKeyFromStatus(statusLabel);
+
+  if (!lifecycleKey || !workflowMap[lifecycleKey]) {
+    throw new Error(`No workflow transition ID found for status: ${statusLabel}`);
+  }
+
+  const transitionId = workflowMap[lifecycleKey];
   const url = `${process.env.JIRA_BASE_URL}/rest/api/3/issue/${issueKey}/transitions`;
 
   try {
-    await axios.post(url, {
-      transition: { id: transitionId }
-    }, {
-      auth: {
-        username: process.env.JIRA_USER,
-        password: process.env.JIRA_API_TOKEN
+    await axios.post(
+      url,
+      { transition: { id: transitionId } },
+      {
+        auth: {
+          username: process.env.JIRA_USER,
+          password: process.env.JIRA_API_TOKEN
+        }
       }
-    });
-    console.log(`✅ Bug ${issueKey} transitioned to ${status} (ID: ${transitionId})`);
+    );
+    console.log(`✅ Bug ${issueKey} transitioned to ${statusLabel} (ID: ${transitionId})`);
   } catch (error) {
-    console.error(`❌ Failed to update bug ${issueKey} status to ${status}:`, error.response?.data || error.message);
+    console.error(`❌ Failed to update bug ${issueKey} status to ${statusLabel}:`, error.response?.data || error.message);
   }
 }
+
 
 // ===============================
 // 📎 Link bug to its test case

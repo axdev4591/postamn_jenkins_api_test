@@ -667,6 +667,8 @@ async function syncPostmanResults(resultsJsonPath) {
       // Determine overall test status from all test assertions for this execution
       // Note: exec.test or exec.tests array depends on Postman result structure
       // Here we check exec.tests or fallback to exec.tests with 'assertions' array
+
+
       const testAssertions = Array.isArray(exec.tests) ? exec.tests : [];
 
       let overallStatus = TEST_STATUS.SKIPPED;
@@ -676,6 +678,18 @@ async function syncPostmanResults(resultsJsonPath) {
         overallStatus = anyFailed ? TEST_STATUS.FAILED : TEST_STATUS.PASSED;
       }
 
+      const assertions = (exec.tests || []).map(t => {
+        const passed = t.status?.toUpperCase() === 'PASSED';
+        return {
+          name: t.name,
+          status: passed ? 'PASSED' : 'FAILED',
+          error: passed ? null : {
+            name: t.error?.name,
+            message: t.error?.message,
+            stack: t.error?.stack
+          }
+        };
+      });
 
       // Create or update the test case in Jira/Xray
       const testKey = await createOrUpdateXrayTestCase(testCaseKeyCandidate, testCaseName, description, LABELS, testSetKey, testExecutionKey, overallStatus);
@@ -691,7 +705,25 @@ async function syncPostmanResults(resultsJsonPath) {
         if (!bugKey) {
 
           // Bug description can include failure info + Jenkins link
-          const bugDescriptionText = `🪳 Failure detected for test case ${testKey}.\n\n${description}`;
+          const descriptionLines = [
+            `🪳 **Failure detected for test case ${testKey}.\n\n${description}**`,
+            `**Request:** ${exec.requestExecuted?.method || ''} ${exec.requestExecuted?.url?.raw || ''}`,
+            `**Response:** ${exec.response?.code} ${exec.response?.status} in ${exec.response?.responseTime}ms`,
+            '',
+            '**Assertions:**',
+            ...assertions.map(a => {
+              let line = `- **${a.name}**: ${a.status.toUpperCase()}`;
+              if (a.status !== 'passed' && a.error) {
+                line += `\n  - **Error**: ${a.error.message}`;
+                line += `\n  - **Stack**: ${a.error.stack}`;
+              }
+              return line;
+            })
+          ];
+
+          const bugDescriptionText = descriptionLines.join('\n');
+
+
           const bugDescription = formatToADF(bugDescriptionText);
           bugKey = await createOrUpdateBugForTest(testKey, testCaseName, bugDescription);
         }
@@ -779,10 +811,3 @@ if (require.main === module) {
   syncPostmanResults(filePath);
 }
 
-
-(async () => {
-  // your test processing logic...
-
-  const summary = getSummary();
-  await sendSummaryEmail(summary, "you@example.com,team@example.com");
-})();

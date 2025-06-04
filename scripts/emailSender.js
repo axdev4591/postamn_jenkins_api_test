@@ -41,19 +41,24 @@ async function sendSummaryEmail(summary, recipients) {
     const transporter = nodemailer.createTransport({
         service: 'Gmail', // or use 'SendGrid', 'Outlook', etc.
         auth: {
-            user: process.env.EMAIL_USER,
-            pass: process.env.EMAIL_PASS,
+            user: process.env.USER_EMAIL,
+            pass: process.env.USER_PASS,
         },
     });
 
-    await transporter.sendMail({
-        from: process.env.EMAIL_USER,
-        to: recipients,
-        subject: `📊 Xray Test Report - ${execution.key}`,
-        html,
-    });
+    try {
+        await transporter.sendMail({
+            from: process.env.USER_EMAIL,
+            to: recipients,
+            subject: `📊 Xray Test Report - ${execution.key}`,
+            html,
+        });
+        console.log(`📧 Summary email sent to: ${recipients}`);
+    } catch (err) {
+        console.error('❌ Failed to send summary email:', err.message || err);
+    }
 
-    console.log(`📧 Summary email sent to: ${recipients}`);
+
 }
 
 module.exports = { sendSummaryEmail };

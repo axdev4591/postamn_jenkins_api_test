@@ -10,6 +10,9 @@ const FormData = require('form-data');
 //exec.requestExecuted?.name
 //exec.tests
 
+const { setExecutionInfo, addTestResult, addBugInfo, getSummary } = require('./summaryCollector');
+const { sendSummaryEmail } = require('./emailSender');
+
 // =============================
 // 🔐 Environment Configuration
 // =============================
@@ -637,10 +640,12 @@ async function syncPostmanResults(resultsJsonPath) {
     console.log(`🧩 Test Execution Key: ${testExecutionKey}`);
     console.log(`🧩 Test Set Key: ${testSetKey}`);
 
-    //await verifyJiraIssueExists(testExecutionKey, 'Test Execution');
-    //await verifyJiraIssueExists(testSetKey, 'Test Set');
-
-    // const testExecutionKey = testExecutionMatch[1]; // e.g. "TE-01"
+    // After you extract testExecutionKey and testSetKey
+    setExecutionInfo({
+      key: testExecutionKey,
+      summary: collectionName,
+      date: new Date().toISOString().split('T')[0],
+    });
 
     // Loop through each Postman execution (individual request test result)
     for (const exec of resultsData.run.executions) {
@@ -677,33 +682,64 @@ async function syncPostmanResults(resultsJsonPath) {
 
 
       // Handle bug management based on test status
+      let bugKey = null
       if (overallStatus === TEST_STATUS.FAILED) {
+
         // Create or get existing bug for this test
-        let bugKey = await findExistingBugForTest(testKey);
+        bugKey = await findExistingBugForTest(testKey);
         console.log(`Bug ${bugKey} linked to test : ${testKey}`);
         if (!bugKey) {
+
           // Bug description can include failure info + Jenkins link
           const bugDescriptionText = `Failure detected for test case ${testKey}.\n\n${description}`;
           const bugDescription = formatToADF(bugDescriptionText);
           bugKey = await createOrUpdateBugForTest(testKey, testCaseName, bugDescription);
         }
+
         // Link bug to test case if not linked yet
         await linkBugToTestCase(bugKey, testKey);
+
         // Update bug status to OPEN or REOPENED depending on current status
         await updateJiraBugStatus(bugKey, BUG_LIFECYCLE.REOPENED);
+
+        // Track bug info for report
+        addBugInfo({
+          bugKey,
+          status: BUG_LIFECYCLE.REOPENED,
+          linkedTest: testKey,
+        });
+
       } else if (overallStatus === TEST_STATUS.PASSED) {
         // Check if bug exists, then close it if still open
         const bugKey = await findExistingBugForTest(testKey);
+
         if (bugKey) {
           await updateJiraBugStatus(bugKey, BUG_LIFECYCLE.CLOSED);
+          // Optional: track bug closure
+          addBugInfo({
+            bugKey,
+            status: BUG_LIFECYCLE.CLOSED,
+            linkedTest: testKey,
+          });
         }
       }
 
       // Logging summary per test
       console.log(`Test case ${testKey} processed with status: ${overallStatus}`);
+      // Always add test result summary
+      addTestResult({
+        testKey,
+        name: testCaseName,
+        status: overallStatus,
+        bugKey,
+      });
     }
 
     console.log('✅ All Postman test results synchronized successfully.');
+
+    const summary = getSummary();
+    await sendSummaryEmail(summary, process.env.REPORT_RECIPIENTS); // comma-separated list in .env
+
   } catch (error) {
     console.error('❌ Error during Postman results synchronization:', error.response?.data || error.message || error);
   }
@@ -743,3 +779,9 @@ if (require.main === module) {
 }
 
 
+(async () => {
+  // your test processing logic...
+
+  const summary = getSummary();
+  await sendSummaryEmail(summary, "you@example.com,team@example.com");
+})();

@@ -683,7 +683,8 @@ async function syncPostmanResults(resultsJsonPath) {
         console.log(`Bug ${bugKey} linked to test : ${testKey}`);
         if (!bugKey) {
           // Bug description can include failure info + Jenkins link
-          const bugDescription = `Failure detected for test case ${testKey}.\n\n${description}`;
+          const bugDescriptionText = `Failure detected for test case ${testKey}.\n\n${description}`;
+          const bugDescription = formatToADF(bugDescriptionText);
           bugKey = await createOrUpdateBugForTest(testKey, testCaseName, bugDescription);
         }
         // Link bug to test case if not linked yet

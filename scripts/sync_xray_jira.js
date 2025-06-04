@@ -490,7 +490,7 @@ async function createOrUpdateBugForTest(testKey, testName, description) {
   const res = await axios.post(createUrl, {
     fields: {
       project: { key: process.env.JIRA_PROJECT_KEY },
-      summary: `❌ Failed Test: ${testName}`,
+      summary: `🪳 Failed Test: ${testName}`,
       description,
       issuetype: { name: process.env.BUG_ISSUE_TYPE },
       labels: ['postman', 'automation'],
@@ -691,7 +691,7 @@ async function syncPostmanResults(resultsJsonPath) {
         if (!bugKey) {
 
           // Bug description can include failure info + Jenkins link
-          const bugDescriptionText = `Failure detected for test case ${testKey}.\n\n${description}`;
+          const bugDescriptionText = `🪳 Failure detected for test case ${testKey}.\n\n${description}`;
           const bugDescription = formatToADF(bugDescriptionText);
           bugKey = await createOrUpdateBugForTest(testKey, testCaseName, bugDescription);
         }
@@ -757,6 +757,7 @@ module.exports = {
   submitTestResult,
   getIssueId,
   addTestToTestSet,
+  createOrUpdateBugForTest,
   updateJiraBugStatus,
   fetchJiraWorkflowTransitions,
   fetchJiraCustomFields,

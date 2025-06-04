@@ -23,7 +23,11 @@ const BUG_LIFECYCLE = { CREATED: 'To Do', REOPENED: 'In Progress', CLOSED: 'Done
 const LABELS = ['jenkins', 'postman', 'automation', 'TNR'];
 const XRAY_TEST_TYPE = "Jenkins_postman";
 const XRAY_TEST_TYPE_FIELD_ID = "customfield_XXXXX"; // Replace with your actual custom field ID
-
+const STATUS_KEYWORDS = {
+  CREATED: ['to do', 'open'],
+  REOPENED: ['reopened', 'in progress'],
+  CLOSED: ['done', 'close']
+};
 // =====================
 // 🔍 Regex Definitions
 // =====================
@@ -31,7 +35,14 @@ const RE_TEST_CASE = /\[(API\d+-IDC\d+-IDC\d+)\]/;
 // Matches multiple Jira keys like [IDC-7][IDC-6] Title
 const RE_JIRA_KEYS = /\[(\w+-\d+)\]\[(\w+-\d+)\]/;
 
-
+// ===============================
+// ⚙️ Jira Workflow Transitions Map
+// ===============================
+const workflowMap = {
+  "To Do": "11",
+  "In Progress": "21",
+  "Done": "31"
+};
 // 🔗 Jenkins Pipeline URL for traceability
 const JENKINS_PIPELINE_LINK = 'https://your-jenkins-pipeline-link.example.com';
 
@@ -288,14 +299,10 @@ async function addTestToTestExecution(testExecId, testId) {
 
 
 
-// ===============================
-// ⚙️ Jira Workflow Transitions Map
-// ===============================
-const workflowMap = {};
-
 // ================================
 // 🔄 Fetch Jira Workflow Transitions
 // ================================
+
 async function fetchJiraWorkflowTransitions(issueKeyExample) {
   try {
     const url = `${process.env.JIRA_BASE_URL}/rest/api/3/issue/${issueKeyExample}/transitions`;
@@ -306,13 +313,19 @@ async function fetchJiraWorkflowTransitions(issueKeyExample) {
       }
     });
 
+    // Clear existing map
     for (const key in workflowMap) delete workflowMap[key];
 
+    // Map transition names to your lifecycle keys using constants
     for (const transition of res.data.transitions) {
-      const name = transition.name.toUpperCase();
-      if (name.includes('OPEN')) workflowMap.OPEN = transition.id;
-      else if (name.includes('REOPEN')) workflowMap.REOPENED = transition.id;
-      else if (name.includes('CLOSE')) workflowMap.CLOSED = transition.id;
+      const name = transition.name.toLowerCase();
+
+      for (const [statusKey, keywords] of Object.entries(STATUS_KEYWORDS)) {
+        if (keywords.some(keyword => name.includes(keyword))) {
+          workflowMap[statusKey] = transition.id;
+          break;  // once matched, skip checking other statuses
+        }
+      }
     }
 
     console.log('🔄 Fetched Jira workflow transitions:', workflowMap);
@@ -321,6 +334,8 @@ async function fetchJiraWorkflowTransitions(issueKeyExample) {
     throw error;
   }
 }
+
+
 
 // ============================================
 // 📎 Retrieve All Custom Fields from Jira

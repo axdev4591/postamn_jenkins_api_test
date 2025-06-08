@@ -113,13 +113,13 @@ pipeline {
     stage('Send Summary Email') {
   steps {
     withCredentials([
-      string(credentialsId: 'USER_EMAIL', variable: 'EMAIL_USER'),
-      string(credentialsId: 'USER_PASS', variable: 'EMAIL_PASS')
+      string(credentialsId: 'USER_EMAIL', variable: 'USER_EMAIL'),
+      string(credentialsId: 'USER_PASS', variable: 'USER_PASS')
     ]) {
       sh '''
         set -ex
-        export EMAIL_USER="$EMAIL_USER"
-        export EMAIL_PASS="$EMAIL_PASS"
+        export USER_EMAIL="$USER_EMAIL"
+        export USER_PASS="$USER_PASS"
         node scripts/send-email.js
       '''
     }

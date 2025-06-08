@@ -424,9 +424,9 @@ async function linkBugToTestCase(bugKey, testKey) {
   }
   const url = `${process.env.JIRA_BASE_URL}/rest/api/3/issueLink`;
   const payload = {
-    type: { name: "Blocks" },     // ✅ This is the correct link type name
-    inwardIssue: { key: testKey },   // 🔁 testKey is blocked
-    outwardIssue: { key: bugKey }    // 🔁 bugKey is blocking
+    type: { name: "Blocks" }, // ✅ This is the correct link type name
+    inwardIssue: { key: bugKey },   // 🪳 Bug
+    outwardIssue: { key: testKey }  // 🧪 Test
   };
 
   try {

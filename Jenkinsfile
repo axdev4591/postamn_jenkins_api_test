@@ -15,6 +15,7 @@ pipeline {
     BUG_ISSUE_TYPE = 'Bug'
     XRAY_BASE_URL = 'https://xray.cloud.getxray.app'
     JIRA_USER = 'axelmouele4591@gmail.com' // Change as needed
+    REPORT_RECIPIENTS='axelmouele4591@gmail.com,axdev2020@gmail.com'
   }
 
   parameters {
@@ -110,26 +111,8 @@ pipeline {
       }
     }
 
-   stage('Send Summary Email') {
-  steps {
-    withCredentials([
-      string(credentialsId: 'USER_EMAIL', variable: 'INJECTED_EMAIL'),
-      string(credentialsId: 'USER_PASS', variable: 'INJECTED_PASS')
-    ]) {
-      script {
-        withEnv([
-          "USER_EMAIL=${env.INJECTED_EMAIL}",
-          "USER_PASS=${env.INJECTED_PASS}"
-        ]) {
-          sh 'node scripts/send-email.js'
-        }
-      }
-    }
-  }
-}
 
-
-    stage('Sync to Jira/Xray') {
+ stage('Sync to Jira/Xray') {
       steps {
         withCredentials([
           string(credentialsId: 'JIRA_API_TOKEN', variable: 'JIRA_API_TOKEN'),
@@ -152,6 +135,27 @@ pipeline {
         }
       }
     }
+
+ stage('Send Summary Email') {
+      steps {
+        withCredentials([
+          string(credentialsId: 'USER_EMAIL', variable: 'USER_EMAIL'),
+          string(credentialsId: 'USER_PASS', variable: 'USER_PASS')
+        ]) {
+          sh '''
+            set -ex
+            export USER_EMAIL=$USER_EMAIL
+            export USER_EMAIL=$USER_EMAIL
+
+            node scripts/send-email.js"
+          '''
+        }
+      }
+    }
+	
+
+
+    
 
     stage('Archive Results') {
       steps {

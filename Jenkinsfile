@@ -66,19 +66,28 @@ pipeline {
     }
 
     stage('Run Postman Collection') {
-      steps {
-        catchError(buildResult: 'SUCCESS', stageResult: 'UNSTABLE') {
-          sh '''
-            set -ex
-            "$POSTMAN_BIN" collection run "$POSTMAN_COLLECTION_ID" \
-              -e "$POSTMAN_ENV_ID" \
-              --integration-id "$POSTMAN_INTEGRATION_ID" \
-              --reporters cli,json \
-              --reporter-json-export results.json || true
-          '''
-        }
-      }
+  steps {
+    catchError(buildResult: 'SUCCESS', stageResult: 'UNSTABLE') {
+      sh '''
+        set -ex
+
+        echo "🔍 Checking network access to videogamedb.uk API..."
+        curl -X GET "https://videogamedb.uk:443/api/videogame" \
+          -H "accept: application/json" \
+          -Iv || echo "❌ videogamedb.uk unreachable from Jenkins"
+
+        echo "🚀 Running Postman CLI collection"
+        "$POSTMAN_BIN" collection run "$POSTMAN_COLLECTION_ID" \
+          --insecure \
+          -e "$POSTMAN_ENV_ID" \
+          --integration-id "$POSTMAN_INTEGRATION_ID" \
+          --reporters cli,json \
+          --reporter-json-export results.json || true
+      '''
     }
+  }
+}
+
 
     stage('Set Build Name with Test Execution Key') {
       steps {

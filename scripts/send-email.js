@@ -41,6 +41,17 @@ async function sendSummaryEmail(summary, recipients) {
   console.log('DEBUG - USER_EMAIL:', process.env.USER_EMAIL);
   console.log('DEBUG - USER_PASS:', process.env.USER_PASS ? 'Present' : 'Missing');
 
+  if (!process.env.USER_EMAIL || !process.env.USER_PASS) {
+    console.error("❌ Missing USER_EMAIL or USER_PASS environment variables.");
+    return;
+  }
+
+  if (!recipients || (Array.isArray(recipients) && recipients.length === 0)) {
+    console.error("❌ No recipients specified for summary email.");
+    return;
+  }
+
+
   const transporter = nodemailer.createTransport({
     service: 'Gmail', // or use 'SendGrid', 'Outlook', etc.
     auth: {

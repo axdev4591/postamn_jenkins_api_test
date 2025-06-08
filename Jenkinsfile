@@ -158,8 +158,21 @@ pipeline {
 
 	
 
+stage('Debug Env') {
+  steps {
+    withCredentials([
+      string(credentialsId: 'USER_EMAIL', variable: 'USER_EMAIL'),
+      string(credentialsId: 'USER_PASS', variable: 'USER_PASS')
+    ]) {
+      sh '''
+        echo "EMAIL: $USER_EMAIL"
+        echo "PASS: ${USER_PASS:+Present}"
+        node -e "console.log('Node sees:', process.env.USER_EMAIL, process.env.USER_PASS ? 'Present' : 'Missing')"
+      '''
+    }
+  }
+}
 
-    
 
     stage('Archive Results') {
       steps {

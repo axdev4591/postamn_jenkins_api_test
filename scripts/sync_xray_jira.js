@@ -10,8 +10,9 @@ const FormData = require('form-data');
 //exec.requestExecuted?.name
 //exec.tests
 
-const { setExecutionInfo, addTestResult, addBugInfo, getSummary } = require('./scripts/summaryCollector');
-const { sendSummaryEmail } = require('./scripts/send-email');
+const { setExecutionInfo, addTestResult, addBugInfo, getSummary } = require('./summaryCollector');
+const { sendSummaryEmail } = require('./send-email');
+
 
 // =============================
 // 🔐 Environment Configuration

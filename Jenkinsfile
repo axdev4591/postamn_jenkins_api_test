@@ -117,7 +117,9 @@ pipeline {
         withCredentials([
           string(credentialsId: 'JIRA_API_TOKEN', variable: 'JIRA_API_TOKEN'),
           string(credentialsId: 'XRAY_CLIENT_ID', variable: 'XRAY_CLIENT_ID'),
-          string(credentialsId: 'XRAY_CLIENT_SECRET', variable: 'XRAY_CLIENT_SECRET')
+          string(credentialsId: 'XRAY_CLIENT_SECRET', variable: 'XRAY_CLIENT_SECRET'),
+          string(credentialsId: 'USER_EMAIL', variable: 'USER_EMAIL'),
+          string(credentialsId: 'USER_PASS', variable: 'USER_PASS')
         ]) {
           sh '''
             set -ex
@@ -129,31 +131,14 @@ pipeline {
             export JIRA_PROJECT_KEY=$JIRA_PROJECT_KEY
             export BUG_ISSUE_TYPE=$BUG_ISSUE_TYPE
             export XRAY_BASE_URL=$XRAY_BASE_URL
+            export USER_EMAIL=$USER_EMAIL
+            export USER_PASS=$USER_PASS
 
             node scripts/sync_xray_jira.js results.json || echo "⚠️ Warning: sync_xray_jira.js failed but pipeline will not fail."
           '''
         }
       }
     }
-
- stage('Send Summary Email') {
-  steps {
-    withCredentials([
-      usernamePassword(credentialsId: 'EMAIL_CREDENTIALS', usernameVariable: 'USER_EMAIL', passwordVariable: 'USER_PASS')
-    ]) {
-      sh '''
-        set -ex
-        echo "DEBUG - USER_EMAIL: $USER_EMAIL"
-        echo "DEBUG - USER_PASS: ${USER_PASS:+Present}"
-
-        USER_EMAIL=$USER_EMAIL USER_PASS=$USER_PASS node scripts/send-email.js
-      '''
-    }
-  }
-}
-
-
-	
 
 stage('Debug Env') {
   steps {

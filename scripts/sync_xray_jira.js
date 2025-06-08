@@ -408,34 +408,6 @@ function getLifecycleKeyFromStatus(statusLabel) {
   return null;
 }
 
-async function updateJiraBugStatus(issueKey, statusLabel) {
-  const lifecycleKey = getLifecycleKeyFromStatus(statusLabel);
-
-  if (!lifecycleKey || !workflowMap[lifecycleKey]) {
-    throw new Error(`No workflow transition ID found for status: ${statusLabel}`);
-  }
-
-  const transitionId = workflowMap[lifecycleKey];
-  const url = `${process.env.JIRA_BASE_URL}/rest/api/3/issue/${issueKey}/transitions`;
-
-  try {
-    await axios.post(
-      url,
-      { transition: { id: transitionId } },
-      {
-        auth: {
-          username: process.env.JIRA_USER,
-          password: process.env.JIRA_API_TOKEN
-        }
-      }
-    );
-    console.log(`✅ Bug ${issueKey} transitioned to ${statusLabel} (ID: ${transitionId})`);
-  } catch (error) {
-    console.error(`❌ Failed to update bug ${issueKey} status to ${statusLabel}:`, error.response?.data || error.message);
-  }
-}
-
-
 // ===============================
 // 📎 Link bug to its test case
 // ===============================
@@ -470,11 +442,10 @@ async function linkBugToTestCase(bugKey, testKey) {
 }
 
 
-
 // =============================================
 // 📎 Create or Update Bug base on test status
 // =============================================
-async function createOrUpdateBugForTest(testKey, testName, description) {
+async function createBugForTest(testKey, testName, description) {
   const searchUrl = buildApiUrl(process.env.JIRA_BASE_URL, '/rest/api/3/search');
   //const jql = `project = ${process.env.JIRA_PROJECT_KEY} AND issuetype = ${process.env.BUG_ISSUE_TYPE} AND "Test" = ${testKey}`;
   const jql = `issue in linkedIssues("${testKey}", "is blocked by")`;
@@ -501,6 +472,36 @@ async function createOrUpdateBugForTest(testKey, testName, description) {
   }, { auth: JIRA_AUTH });
 
   return res.data.key;
+}
+
+// =============================================
+// 📎 Update Bug base on test status
+// =============================================
+async function updateJiraBugStatus(issueKey, statusLabel) {
+  const lifecycleKey = getLifecycleKeyFromStatus(statusLabel);
+
+  if (!lifecycleKey || !workflowMap[lifecycleKey]) {
+    throw new Error(`No workflow transition ID found for status: ${statusLabel}`);
+  }
+
+  const transitionId = workflowMap[lifecycleKey];
+  const url = `${process.env.JIRA_BASE_URL}/rest/api/3/issue/${issueKey}/transitions`;
+
+  try {
+    await axios.post(
+      url,
+      { transition: { id: transitionId } },
+      {
+        auth: {
+          username: process.env.JIRA_USER,
+          password: process.env.JIRA_API_TOKEN
+        }
+      }
+    );
+    console.log(`✅ Bug ${issueKey} transitioned to ${statusLabel} (ID: ${transitionId})`);
+  } catch (error) {
+    console.error(`❌ Failed to update bug ${issueKey} status to ${statusLabel}:`, error.response?.data || error.message);
+  }
 }
 
 
@@ -530,8 +531,6 @@ async function findExistingBugForTest(testKey) {
     return null;
   }
 }
-
-
 
 
 
@@ -702,9 +701,19 @@ async function syncPostmanResults(resultsJsonPath) {
 
         // Create or get existing bug for this test
         bugKey = await findExistingBugForTest(testKey);
-        console.log(`Bug ${bugKey} linked to test : ${testKey}`);
-        if (!bugKey) {
+        if (bugKey) {
+          console.log(`Bug ${bugKey} linked to test : ${testKey}`);
+          // Update bug status to OPEN or REOPENED depending on current status
+          await updateJiraBugStatus(bugKey, BUG_LIFECYCLE.REOPENED);
 
+          // Track bug info for report
+          addBugInfo({
+            bugKey,
+            status: BUG_LIFECYCLE.REOPENED,
+            linkedTest: testKey,
+          });
+        }
+        else {
           // Bug description can include failure info + Jenkins link
           const descriptionLines = [
             `🪳 **Failure detected for test case ${testKey}.\n\n${description}**`,
@@ -721,26 +730,20 @@ async function syncPostmanResults(resultsJsonPath) {
               return line;
             })
           ];
-
           const bugDescriptionText = descriptionLines.join('\n');
 
-
           const bugDescription = formatToADF(bugDescriptionText);
-          bugKey = await createOrUpdateBugForTest(testKey, testCaseName, bugDescription);
+          bugKey = await createBugForTest(testKey, testCaseName, bugDescription);
+          // Link bug to test case if not linked yet
+          await linkBugToTestCase(bugKey, testKey);
+          // Track bug info for report
+          addBugInfo({
+            bugKey,
+            status: BUG_LIFECYCLE.REOPENED,
+            linkedTest: testKey,
+          });
         }
 
-        // Link bug to test case if not linked yet
-        await linkBugToTestCase(bugKey, testKey);
-
-        // Update bug status to OPEN or REOPENED depending on current status
-        await updateJiraBugStatus(bugKey, BUG_LIFECYCLE.REOPENED);
-
-        // Track bug info for report
-        addBugInfo({
-          bugKey,
-          status: BUG_LIFECYCLE.REOPENED,
-          linkedTest: testKey,
-        });
 
       } else if (overallStatus === TEST_STATUS.PASSED) {
         // Check if bug exists, then close it if still open
@@ -790,7 +793,7 @@ module.exports = {
   submitTestResult,
   getIssueId,
   addTestToTestSet,
-  createOrUpdateBugForTest,
+  createBugForTest,
   updateJiraBugStatus,
   fetchJiraWorkflowTransitions,
   fetchJiraCustomFields,

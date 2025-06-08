@@ -1,12 +1,12 @@
 const nodemailer = require("nodemailer");
 
 async function sendSummaryEmail(summary, recipients) {
-    const { execution, tests, bugs } = summary;
+  const { execution, tests, bugs } = summary;
 
-    const passed = tests.filter(t => t.status === "PASSED").length;
-    const failed = tests.filter(t => t.status === "FAILED").length;
+  const passed = tests.filter(t => t.status === "PASSED").length;
+  const failed = tests.filter(t => t.status === "FAILED").length;
 
-    const html = `
+  const html = `
     <h2>🧪 Test Execution Summary: ${execution.key}</h2>
     <p><b>Summary:</b> ${execution.summary}<br>
        <b>Date:</b> ${execution.date}<br>
@@ -38,25 +38,28 @@ async function sendSummaryEmail(summary, recipients) {
     </ul>
   `;
 
-    const transporter = nodemailer.createTransport({
-        service: 'Gmail', // or use 'SendGrid', 'Outlook', etc.
-        auth: {
-            user: process.env.USER_EMAIL,
-            pass: process.env.USER_PASS,
-        },
-    });
+  console.log('DEBUG - USER_EMAIL:', process.env.USER_EMAIL);
+  console.log('DEBUG - USER_PASS:', process.env.USER_PASS ? 'Present' : 'Missing');
 
-    try {
-        await transporter.sendMail({
-            from: process.env.USER_EMAIL,
-            to: recipients,
-            subject: `📊 Xray Test Report - ${execution.key}`,
-            html,
-        });
-        console.log(`📧 Summary email sent to: ${recipients}`);
-    } catch (err) {
-        console.error('❌ Failed to send summary email:', err.message || err);
-    }
+  const transporter = nodemailer.createTransport({
+    service: 'Gmail', // or use 'SendGrid', 'Outlook', etc.
+    auth: {
+      user: process.env.USER_EMAIL,
+      pass: process.env.USER_PASS,
+    },
+  });
+
+  try {
+    await transporter.sendMail({
+      from: process.env.USER_EMAIL,
+      to: recipients,
+      subject: `📊 Xray Test Report - ${execution.key}`,
+      html,
+    });
+    console.log(`📧 Summary email sent to: ${recipients}`);
+  } catch (err) {
+    console.error('❌ Failed to send summary email:', err.message || err);
+  }
 
 
 }

@@ -110,21 +110,24 @@ pipeline {
       }
     }
 
-    stage('Send Summary Email') {
-  steps {
-    withCredentials([
-      string(credentialsId: 'USER_EMAIL', variable: 'USER_EMAIL'),
-      string(credentialsId: 'USER_PASS', variable: 'USER_PASS')
-    ]) {
-      sh '''
-        set -ex
-        export USER_EMAIL="$USER_EMAIL"
-        export USER_PASS="$USER_PASS"
-        node scripts/send-email.js
-      '''
+   stage('Send Summary Email') {
+    steps {
+      withCredentials([
+        string(credentialsId: 'USER_EMAIL', variable: 'USER_EMAIL'),
+        string(credentialsId: 'USER_PASS', variable: 'USER_PASS')
+      ]) {
+        script {
+          withEnv([
+            "USER_EMAIL=${env.USER_EMAIL}",
+            "USER_PASS=${env.USER_PASS}"
+          ]) {
+            sh 'node scripts/send-email.js'
+          }
+        }
+      }
     }
   }
-}
+
 
     stage('Sync to Jira/Xray') {
       steps {

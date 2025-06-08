@@ -137,21 +137,25 @@ pipeline {
     }
 
  stage('Send Summary Email') {
-      steps {
-        withCredentials([
-          string(credentialsId: 'USER_EMAIL', variable: 'USER_EMAIL'),
-          string(credentialsId: 'USER_PASS', variable: 'USER_PASS')
-        ]) {
-          sh '''
-            set -ex
-            export USER_EMAIL=$USER_EMAIL
-            export USER_EMAIL=$USER_EMAIL
+  steps {
+    withCredentials([
+      string(credentialsId: 'USER_EMAIL', variable: 'USER_EMAIL'),
+      string(credentialsId: 'USER_PASS', variable: 'USER_PASS')
+    ]) {
+      sh '''
+        set -ex
+        export USER_EMAIL=$USER_EMAIL
+        export USER_PASS=$USER_PASS
 
-            node scripts/send-email.js"
-          '''
-        }
-      }
+        echo "DEBUG - USER_EMAIL: $USER_EMAIL"
+        echo "DEBUG - USER_PASS: ${USER_PASS:+Present}"
+
+        node scripts/send-email.js
+      '''
     }
+  }
+}
+
 	
 
 
